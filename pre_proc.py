@@ -31,7 +31,7 @@ def split_and_save_data(dataset):
 	id_to_fp = {}
 
 	print ("Splitting Files and Features...")
-
+	np.random.seed(SEED)
 	idxs = np.arange(num_files)
 	np.random.shuffle(idxs)
 	data_split = {'train':idxs[:int(num_files*PCT_TRAIN)], 'dev':idxs[int(num_files*PCT_TRAIN):int(num_files*(PCT_TRAIN+PCT_DEV))], 'test':idxs[int(num_files*(PCT_TRAIN+PCT_DEV)):]}
