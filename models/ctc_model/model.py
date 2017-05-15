@@ -74,24 +74,24 @@ class CTCModel:
 	def add_prediction_op(self):
 
 		# Use a GRU cell
-        cell = tf.contrib.rnn.GRUCell(Config.num_hidden)
+        cell = tf.contrib.rnn.GRUCell(config.num_hidden)
 
         # Run it over the inputs with a dynamic_rnn
         outputs, final_state = tf.nn.dynamic_rnn(cell, self.inputs_placeholder, dtype=tf.float32)
         
         # Initialize the projection variables
-        W = tf.get_variable('W', shape=(Config.num_hidden, Config.num_classes), initializer=tf.contrib.layers.xavier_initializer())
-        b = tf.get_variable('b', shape=(Config.num_classes,), initializer=tf.constant_initializer(0.0))
+        W = tf.get_variable('W', shape=(config.num_hidden, config.num_classes), initializer=tf.contrib.layers.xavier_initializer())
+        b = tf.get_variable('b', shape=(config.num_classes,), initializer=tf.constant_initializer(0.0))
         
         # Reshape the hidden states into a batch size x H*num_timesteps vector
         output_shape = tf.shape(outputs)
-        flattened_outputs = tf.reshape(outputs, [-1, Config.num_hidden])
+        flattened_outputs = tf.reshape(outputs, [-1, config.num_hidden])
 
         # Apply linear transformation to hidden states
         z1 = tf.matmul(flattened_outputs, W) + b
 
         # Reshape to get scores for every timestep
-        scores = tf.reshape(z1, [output_shape[0], output_shape[1], Config.num_classes])
+        scores = tf.reshape(z1, [output_shape[0], output_shape[1], config.num_classes])
 
         # Store this intermediate representation
         self.scores = scores
@@ -117,7 +117,7 @@ class CTCModel:
         cost = tf.reduce_mean(loss_without_invalid_paths) 
 
         # Store total loss
-        self.loss = Config.l2_lambda * l2_cost + cost 
+        self.loss = config.reg_val * l2_cost + cost 
 
 
     def add_decoder_and_wer_op(self):
