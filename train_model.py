@@ -17,7 +17,6 @@ def parse_arguments():
 
 def train(model):
 
-
 # 	init = tf.global_variables_initializer()
 # 	with tf.Session as sess:
 # 		sess.run(init)
@@ -35,5 +34,4 @@ def train(model):
 
 
 if __name__ == '__main__':
-
 	parse_arguments()
