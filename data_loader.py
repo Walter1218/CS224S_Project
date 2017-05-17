@@ -8,15 +8,20 @@ import pickle
 
 class DataLoader:
 
-	def __init__(self):
+	def __init__(self, dataset, max_input, max_output, normalize=False, split='train'):
 		# Load the data from pickle file depending on input
 		self.num_train_examples = 10000
 		self.max_time = 1929
 		self.max_char = 336
-		self.max_time = 500
-		self.max_char = 200
+		self.max_input = max_input
+		self.max_output = max_output
+		self.normalize = normalize
+		self.split = split
+		self.pad_char = 27
+		self.start_char = 28
+		self.end_char = 29
 
-		pathname = 'data/'+self.dataset+'/'
+		pathname = 'data/'+dataset+'/'
 		if self.split == 'train':
 			features = pickle.load(open(pathname+'mfcc_train.pkl', 'rb'))
 			labels = pickle.load(open(pathname+'labels_train.pkl', 'rb'))
@@ -32,7 +37,7 @@ class DataLoader:
 		self.batch_labels = []
 		for f in features.keys():
 			feature = features[f]
-			if feature.shape[1] > self.max_time or len(label[f]) > self.max_char: continue
+			if feature.shape[1] > self.max_input or len(label[f]) > self.max_output: continue
 			# Normalize features if you want
 			if self.normalize: feature = normalize(feature)
 
@@ -49,20 +54,20 @@ class DataLoader:
 
 
 	def pad_feature(self, feature):
-		pad = np.zeros((feature.shape[0], self.max_time-feature.shape[1]))
+		pad = np.zeros((feature.shape[0], self.max_input - feature.shape[1]))
 		if self.feature_pad == 'front':
-			return np.append(pad, feature, 1), feature.shape[1]
+			return np.transpose(np.append(pad, feature, 1)), feature.shape[1]
 		else:
-			return np.append(feature, pad, 1), feature.shape[1]
+			return np.transpose(np.append(feature, pad, 1)), feature.shape[1]
 
 	def pad_label(self, label):
-		pad = [27]*(self.max_char - len(label))
+		pad = [self.pad_char]*(self.max_char - len(label))
 		if self.label_pad == 'front':
 			mask = [0] * len(pad) + [1] * (len(label)+2)
-			return pad + [28] + feature + [29], mask
+			return pad + [self.start_char] + feature + [self.end_char], mask
 		else:
 			mask = [1] * (len(label)+2)+[0] * len(pad)
-			return [28] + feature + [29] + pad, mask
+			return [self.start_char] + feature + [self.end_char] + pad, mask
 
 
 	def sample_minibatch(self, shuffle=True):
