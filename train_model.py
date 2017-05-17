@@ -7,12 +7,15 @@ weights and visualizations to the results directory.
 import os
 import sys
 import math
+from time import gmtime, strftime
+import inspect
 import tensorflow as tf
 import argparse
 from data_loader import DataLoader
 
 model = None
-DL = None
+DL_train = None
+DL_val = None
 
 '''
 Function: parse_arguments()
@@ -22,9 +25,11 @@ Parses the command line arguments and stores/returns them in args
 def parse_arguments():
 	parser = argparse.ArgumentParser(description='Trains an end-to-end neural ASR model')
 	parser.add_argument('-m', '--model', default='baseline', help="Model you would like to train")
-	parser.add_argument('-s', '--save', default=None, help="Whether you would like to save the model, default is false.")
-	parser.add_argument('-r', '--restore', default=None, help="What filename you would like to load the model from, default is false.")
-	parser.add_argument('-d', '--data', default='./data/wsj/', help="What directory the data lives in")
+	parser.add_argument('-s', '--save', default=True, type=bool, help="Whether you would like to save the model, default is false.")
+	parser.add_argument('-n', '--resdir', default=None, help="Name of directory you would like to save results in")
+	parser.add_argument('-rf', '--restorefile', default=None, help="What filename you would like to load the model from, default is None.")
+	parser.add_argument('-r', '--restore', default=False, help="Whether you would like to restore a saved model")
+	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
 	args = parser.parse_args()
 	return args
 
@@ -45,15 +50,37 @@ def load_model_and_data(args):
 	# Import the config and model from their respective files
 	global config
 	import config
+	with open(full_path + '/config.py') as f:
+		print f.read()
 
 
+	print 'Creating graph...'
 	from model import ASRModel
 	global model
 	model = ASRModel()
 
-	# TODO: load train and val data
-	global DL
-	DL = DataLoader(path=args.data, max_in_len=config.max_in_len, max_out_len=config.max_out_len)
+	# Training data loader
+	print 'Loading training data...'
+	global DL_train
+	DL_train = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split='train')
+
+	# Validation data loader
+	print 'Loading validation data'
+	global DL_val
+	DL_val = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split='dev')
+
+
+def create_results_dir(args):
+	parent_dir = 'results/' + args.model + '/'
+	global results_dir
+	if args.resdir:
+		results_dir = parent_dir + args.resdir
+	else:
+		results_dir = parent_dir + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
+	if not os.path.exists(results_dir) and args.save:
+		print 'Creating directory ' + results_dir + '...'
+    	os.makedirs(results_dir)
+    	os.makedirs(results_dir + '/weights')
 
 
 def train(args):
@@ -61,50 +88,76 @@ def train(args):
 	# Init function for all variables
 	init = tf.global_variables_initializer()
 
+	# Directory to store weights in
+	weights_dir = results_dir + '/weights'
+
 	# Create a session
 	with tf.Session() as sess:
 
 		# Run initialization
 		sess.run(init)
 
-		# Load from saved model if argument is specified
-
 		# Writes summaries out to the given path
-		# writer = tf.summary.FileWriter(path, sess.graph)
+		writer = tf.summary.FileWriter(results_dir, sess.graph)
 
 		# Saves the model to a file, or restores it
 		saver = tf.train.Saver(tf.trainable_variables())
 
+		# Load from saved model if argument is specified
+		if args.restore:
+			if args.restorefile:
+				print 'Restoring from ' + args.restorefile
+				saver.restore(sess, weights_dir + '/' + restorefile)
+			else:
+				ckpt = tf.train.get_checkpoint_state(os.path.dirname(weights_dir))
+				if ckpt and ckpt.model_checkpoint_path:
+					print 'Restoring from ' + ckpt.model_checkpoint_path
+					saver.restore(sess, ckpt.model_checkpoint_path)
+
+
+		# Used for keeping track of summaries
+		overall_num_iters = 0
+
 		# For every epoch
 		for epoch in xrange(config.num_epochs):
 
+			print 'Epoch ' + str(epoch) + ' of ' + str(config.num_epochs)
+
 			# Number of batches that we loop over in one epoch
-			num_iters_per_epoch = int(DL.num_train_examples/config.batch_size)
+			num_iters_per_epoch = int(DL_train.num_examples/config.batch_size)
 
 			# For every batch
 			for iter_num in xrange(num_iters_per_epoch):
-				pass
+
+				# Get training batch
+				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
 				
+				# Get loss and summary
+				loss, _, summary = model.train_on_batch(sess, batch_input, batch_seq_lens, batch_labels, batch_mask)
+				
+				# Write summary out
+				writer.add_summary(summary, overall_num_iters)
 
-				# DL.get_batch
-				# 
+				# Increment number of iterations
+				overall_num_iters += 1
 
+				# Print out training loss, iteration number, and val loss to console
+				if iter_num % config.print_every == 0:
+					print 'Iteration ' + str(iter_num)
+					print 'Training loss is', loss
+					val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=config.batch_size)
+					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
+					print 'Val loss is', val_loss
 
+			# Save after every epoch
+			if args.save:
+				saver.save(sess, weights_dir + '/model', global_step=curr_epoch + 1)
 
-			# Evaluate validation set, save model if better
-			# saver.save(sess, args.save_to_file, global_step=curr_epoch + 1)
-
-		# writer.add_summary(summary_extracted_from_sess, iteration number)
-# 		# saver.save(session, args.save_to_file, global_step=curr_epoch + 1)
-# 		# ckpt = tf.train.get_checkpoint_state(os.path.dirname('checkpoints/checkpoint'))
-# 		# if ckpt and ckpt.model_checkpoint_path:
-		# saver.restore(sess, ckpt.model_checkpoint_path)
-# # tf.train.Saver.save(sess, save_path, global_step=None, latest_filename=None,
-# meta_graph_sufix = 'meta', write_meta_graph=True, write_state=True)
-
+		print 'All done!'
 
 
 if __name__ == '__main__':
 	args = parse_arguments()
 	load_model_and_data(args)
+	create_results_dir(args)
 	train(args)
