@@ -35,6 +35,8 @@ class DataLoader:
 		self.input_ids = []
 		self.batch_features = []
 		self.batch_labels = []
+		self.sequence_lens = []
+		self.masks = []
 		for f in features.keys():
 			feature = features[f]
 			if feature.shape[1] > self.max_input or len(label[f]) > self.max_output: continue
@@ -47,6 +49,8 @@ class DataLoader:
 			self.input_ids.append(f)
 			self.batch_features.append(feature)
 			self.batch_labels.append(label)
+			self.sequence_lens.append(sequence_lens)
+			self.masks.append(mask)
 
 	
 	def normalize(feature):
@@ -70,19 +74,15 @@ class DataLoader:
 			return [self.start_char] + feature + [self.end_char] + pad, mask
 
 
-	def sample_minibatch(self, shuffle=True):
+	def get_minibatch(self, shuffle=True):
 	    """
 	    Iterates through the provided data one minibatch at at time. You can use this function to
 	    iterate through data in minibatches as follows:
-
 	        for inputs_minibatch in get_minibatches(inputs, minibatch_size):
 	            ...
-
 	    Or with multiple data sources:
-
 	        for inputs_minibatch, labels_minibatch in get_minibatches([inputs, labels], minibatch_size):
 	            ...
-
 	    Args:
 	        data: there are two possible values:
 	            - a list or numpy array
@@ -95,9 +95,8 @@ class DataLoader:
 	            - If data a list of lists/arrays it returns the next minibatch of each element in the
 	              list. This can be used to iterate through multiple data sources
 	              (e.g., features and labels) at the same time.
-
 	    """
-	    data = [self.batch_features, self.batch_labels]
+	    data = [self.batch_features, self.sequence_lens, self.batch_labels, self.masks]
 	    minibatch_size = self.minibatch_size
 	    list_data = type(data) is list and (type(data[0]) is list or type(data[0]) is np.ndarray)
 	    data_size = len(data[0]) if list_data else len(data)
