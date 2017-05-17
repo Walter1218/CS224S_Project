@@ -26,11 +26,12 @@ Parses the command line arguments and stores/returns them in args
 def parse_arguments():
 	parser = argparse.ArgumentParser(description='Trains an end-to-end neural ASR model')
 	parser.add_argument('-m', '--model', default='baseline', help="Model you would like to train")
-	parser.add_argument('-s', '--save', default=True, type=bool, help="Whether you would like to save the model, default is false.")
+	parser.add_argument('-s', '--save', default=True, type=bool, help="Whether you would like to save the model, default is true.")
 	parser.add_argument('-n', '--resdir', default=None, help="Name of directory you would like to save results in")
 	parser.add_argument('-rf', '--restorefile', default=None, help="What filename you would like to load the model from, default is None.")
 	parser.add_argument('-r', '--restore', default=False, help="Whether you would like to restore a saved model")
 	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
+	parser.add_argument('-g', '--gpu', default=None, help="GPU number you would like to use")
 	args = parser.parse_args()
 	return args
 
@@ -80,19 +81,6 @@ def create_results_dir(args):
 		results_dir = parent_dir + args.resdir
 	else:
 		results_dir = parent_dir + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
-	# print os.path.exists(results_dir)
-	# if not os.path.exists(results_dir):
-	# 	print 'Here!'
-	# 	print 'Creating directory ' + results_dir + '...'
- #    	# os.makedirs(results_dir)
-
-	# weights_dir = results_dir + '/weights'
-	# weights_exist = os.path.exists(weights_dir)
-	# if not weights_exist:
-	# 	print 'Here!'
-	# 	print 'Hi'
- #    	# print 'Creating directory ' + weights_dir + '...'
- #    	# os.makedirs(weights_dir)
 
 
 def train(args):
@@ -170,16 +158,15 @@ def train(args):
 			print 'Sample validation results:'
 			val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
 			val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
-			print 'Expected', val_labels
-			print 'Got', val_preds
+			print 'Expected', val_labels[:, 1:21]
+			print 'Got', val_preds[:, :21]
 
 			print 'Sample train results:'
 			train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
 			train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
-			print 'Expected', train_labels
-			print 'Got', train_preds
-			print train_labels.shape
-			print train_preds.shape
+			print 'Expected', train_labels[:, 1:21]
+			print 'Got', train_preds[:, :21]
+
 
 		print 'All done!'
 
@@ -189,3 +176,4 @@ if __name__ == '__main__':
 	load_model_and_data(args)
 	create_results_dir(args)
 	train(args)
+

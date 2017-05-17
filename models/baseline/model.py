@@ -118,6 +118,8 @@ class ASRModel:
 			cell = tf.contrib.rnn.GRUCell(num_units = config.decoder_hidden_size)
 			W = tf.get_variable('W')
 			b = tf.get_variable('b')
+			# a = self.encoded
+			# a = tf.Print(a, [a])
 			
 			# Convert input tensor to list
 			decoder_inputs = tf.unstack(self.labels_placeholder, axis=1)[:-1]
