@@ -24,6 +24,7 @@ def parse_arguments():
 	parser.add_argument('-m', '--model', default='baseline', help="Model you would like to train")
 	parser.add_argument('-s', '--save', default=None, help="Whether you would like to save the model, default is false.")
 	parser.add_argument('-r', '--restore', default=None, help="What filename you would like to load the model from, default is false.")
+	parser.add_argument('-d', '--data', default='./data/wsj/', help="What directory the data lives in")
 	args = parser.parse_args()
 	return args
 
@@ -52,7 +53,7 @@ def load_model_and_data(args):
 
 	# TODO: load train and val data
 	global DL
-	DL = DataLoader()
+	DL = DataLoader(path=args.data, max_in_len=config.max_in_len, max_out_len=config.max_out_len)
 
 
 def train(args):
@@ -71,7 +72,7 @@ def train(args):
 		# Writes summaries out to the given path
 		# writer = tf.summary.FileWriter(path, sess.graph)
 
-		# Saves the model to a file
+		# Saves the model to a file, or restores it
 		saver = tf.train.Saver(tf.trainable_variables())
 
 		# For every epoch
@@ -81,8 +82,12 @@ def train(args):
 			num_iters_per_epoch = int(DL.num_train_examples/config.batch_size)
 
 			# For every batch
-			for i in xrange(num_iters_per_epoch):
+			for iter_num in xrange(num_iters_per_epoch):
 				pass
+				
+
+				# DL.get_batch
+				# 
 
 
 

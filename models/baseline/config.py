@@ -14,3 +14,6 @@ clip_val          	= 10
 # Training Settings
 num_epochs = 100
 batch_size = 32
+
+max_in_len = 500
+max_out_len = 200
