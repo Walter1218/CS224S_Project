@@ -116,8 +116,8 @@ class ASRModel:
 
 			# Use the same cell and output projection as in the decoder train case
 			cell = tf.contrib.rnn.GRUCell(num_units = config.decoder_hidden_size)
-			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), initializer=tf.contrib.layers.xavier_initializer())
-			b = tf.get_variable('b', shape=(config.vocab_size,), initializer=tf.constant_initializer(0.0))
+			W = tf.get_variable('W')
+			b = tf.get_variable('b')
 			
 			# Convert input tensor to list
 			decoder_inputs = tf.unstack(self.labels_placeholder, axis=1)[:-1]

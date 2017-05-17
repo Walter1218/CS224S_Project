@@ -8,6 +8,7 @@ import os
 import sys
 import math
 from time import gmtime, strftime
+import time
 import inspect
 import tensorflow as tf
 import argparse
@@ -71,16 +72,27 @@ def load_model_and_data(args):
 
 
 def create_results_dir(args):
+	if not args.save: 
+		return
 	parent_dir = 'results/' + args.model + '/'
 	global results_dir
 	if args.resdir:
 		results_dir = parent_dir + args.resdir
 	else:
 		results_dir = parent_dir + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
-	if not os.path.exists(results_dir) and args.save:
-		print 'Creating directory ' + results_dir + '...'
-    	os.makedirs(results_dir)
-    	os.makedirs(results_dir + '/weights')
+	# print os.path.exists(results_dir)
+	# if not os.path.exists(results_dir):
+	# 	print 'Here!'
+	# 	print 'Creating directory ' + results_dir + '...'
+ #    	# os.makedirs(results_dir)
+
+	# weights_dir = results_dir + '/weights'
+	# weights_exist = os.path.exists(weights_dir)
+	# if not weights_exist:
+	# 	print 'Here!'
+	# 	print 'Hi'
+ #    	# print 'Creating directory ' + weights_dir + '...'
+ #    	# os.makedirs(weights_dir)
 
 
 def train(args):
@@ -105,11 +117,13 @@ def train(args):
 
 		# Load from saved model if argument is specified
 		if args.restore:
+			print 'Restoring'
 			if args.restorefile:
 				print 'Restoring from ' + args.restorefile
-				saver.restore(sess, weights_dir + '/' + restorefile)
+				saver.restore(sess, results_dir + '/' + restorefile)
 			else:
-				ckpt = tf.train.get_checkpoint_state(os.path.dirname(weights_dir))
+				print 'No file given, restoring most recent'
+				ckpt = tf.train.get_checkpoint_state(results_dir)
 				if ckpt and ckpt.model_checkpoint_path:
 					print 'Restoring from ' + ckpt.model_checkpoint_path
 					saver.restore(sess, ckpt.model_checkpoint_path)
@@ -126,8 +140,9 @@ def train(args):
 			# Number of batches that we loop over in one epoch
 			num_iters_per_epoch = int(DL_train.num_examples/config.batch_size)
 
+			start = time.time()
 			# For every batch
-			for iter_num in xrange(num_iters_per_epoch):
+			for iter_num in xrange(101):
 
 				# Get training batch
 				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
@@ -145,13 +160,29 @@ def train(args):
 				if iter_num % config.print_every == 0:
 					print 'Iteration ' + str(iter_num)
 					print 'Training loss is', loss
-					val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=config.batch_size)
+					val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=64)
 					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
 					print 'Val loss is', val_loss
 
+			print 'Epoch took ' + str(time.time() - start) + ' seconds'
+
 			# Save after every epoch
 			if args.save:
-				saver.save(sess, weights_dir + '/model', global_step=curr_epoch + 1)
+				saver.save(sess, results_dir + '/model', global_step=epoch + 1)
+
+			print 'Sample validation results:'
+			val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
+			val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
+			print 'Expected', val_labels
+			print 'Got', val_preds
+
+			print 'Sample train results:'
+			train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
+			train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
+			print 'Expected', train_labels
+			print 'Got', train_preds
+			print train_labels.shape
+			print train_preds.shape
 
 		print 'All done!'
 

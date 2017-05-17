@@ -6,7 +6,7 @@ embedding_dim 		= 100
 vocab_size			= 30
 
 # Hyperparameters
-lr 					= 1e-4
+lr 					= 1e-3
 dropout_p 			= 1
 clip_gradients		= False
 clip_val          	= 10
