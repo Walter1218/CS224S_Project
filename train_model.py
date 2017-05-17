@@ -100,9 +100,6 @@ def train(args):
 	# Init function for all variables
 	init = tf.global_variables_initializer()
 
-	# Directory to store weights in
-	weights_dir = results_dir + '/weights'
-
 	# Create a session
 	with tf.Session() as sess:
 
@@ -142,7 +139,7 @@ def train(args):
 
 			start = time.time()
 			# For every batch
-			for iter_num in xrange(101):
+			for iter_num in xrange(num_iters_per_epoch):
 
 				# Get training batch
 				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)

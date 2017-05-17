@@ -19,6 +19,14 @@ class DataLoader:
 		self.start_char = 28
 		self.end_char = 29
 
+		self.ints_to_chars = {}
+		for i in range(26):
+			self.ints_to_chars[i] = chr(i + 97)
+		self.ints_to_chars[26] = ' '
+		self.ints_to_chars[self.pad_char] = '<PAD>'
+		self.ints_to_chars[self.start_char] = '<s>'
+		self.ints_to_chars[self.end_char] = '<e>'
+
 		# Load the data depending on what split was specified
 		pathname = 'data/' + dataset+'/'
 		if self.split == 'train':
@@ -65,7 +73,7 @@ class DataLoader:
 		self.batch_labels = np.array(self.batch_labels)
 		self.sequence_lens = np.array(self.sequence_lens)
 		self.masks = np.array(self.masks)
-
+		self.data = [self.batch_features, self.sequence_lens, self.batch_labels, self.masks]
 		self.num_examples = self.batch_features.shape[0]
 		print 'Loaded ' + str(self.num_examples) + ' examples!'
 
@@ -108,3 +116,14 @@ class DataLoader:
 	    rand_indices = np.random.choice(range(self.num_examples), size=batch_size, replace=False)
 	    return self.batch_features[rand_indices], self.sequence_lens[rand_indices], self.batch_labels[rand_indices], \
 	    		self.masks[rand_indices]
+
+	def decode(self, input_seq):
+		output = ''
+		for val in input_seq:
+			next_char = self.ints_to_chars[val]
+			output += self.ints_to_chars[val]
+			if val == self.end_char:
+				break
+		return output
+
+
