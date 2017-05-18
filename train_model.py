@@ -87,9 +87,9 @@ def train(args):
 
 	# Init function for all variables
 	init = tf.global_variables_initializer()
-
+        config2 = tf.ConfigProto(allow_soft_placement = True)
 	# Create a session
-	with tf.Session() as sess:
+	with tf.Session(config=config2) as sess:
 
 		# Run initialization
 		sess.run(init)
@@ -180,7 +180,7 @@ if __name__ == '__main__':
 			create_results_dir(args)
 			train(args)
 	else:
-		load_model_and_data(args)
-		create_results_dir(args)
-		train(args)
+                load_model_and_data(args)
+                create_results_dir(args)
+                train(args)
 

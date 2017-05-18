@@ -7,7 +7,6 @@ import sys
 import math
 from time import gmtime, strftime
 import time
-import inspect
 import numpy as np
 import tensorflow as tf
 import argparse
@@ -76,7 +75,7 @@ def test(args):
 				saver.restore(sess, ckpt.model_checkpoint_path)
 
 		test_data = DL_test.data
-		total_wer = 0.0
+		total_cer = 0.0
 		for i in range(DL_test.num_examples):
 			print 'Testing example', i
 			# Input a batch of size 1
@@ -92,9 +91,11 @@ def test(args):
 			preds = preds[0]
 			output_pred = DL_test.decode(preds)
 			output_real = DL_test.decode(list(labels[0]))
-			wer = editdistance.eval(output_real.split(), output_pred.split())
-			total_wer += wer
-		print 'Average WER:', total_wer/num_examples
+                        print 'Predicted\n', output_pred
+                        print 'Real\n', output_real
+			cer = editdistance.eval(output_real, output_pred)
+			total_cer += cer
+		print 'Average CER:', total_cer/num_examples
 
 
 
