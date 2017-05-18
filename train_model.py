@@ -173,7 +173,14 @@ def train(args):
 
 if __name__ == '__main__':
 	args = parse_arguments()
-	load_model_and_data(args)
-	create_results_dir(args)
-	train(args)
+	if args.gpu:
+		with tf.device('/gpu:' + str(args.gpu)):
+			print 'Attempting to run with gpu ' + str(args.gpu)
+			load_model_and_data(args)
+			create_results_dir(args)
+			train(args)
+	else:
+		load_model_and_data(args)
+		create_results_dir(args)
+		train(args)
 
