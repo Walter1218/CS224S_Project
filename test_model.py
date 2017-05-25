@@ -14,7 +14,7 @@ from data_loader import DataLoader
 import editdistance
 
 model = None
-DL_test = None
+DL = None
 results_dir = None
 
 def parse_arguments():
@@ -23,11 +23,14 @@ def parse_arguments():
 	parser.add_argument('-e', '--expdir', default=None, help="Name of experiment you would like to evaluate")
 	parser.add_argument('-rf', '--restorefile', default=None, help="What filename you would like to load the model from, default is None.")
 	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
+	parser.add_argument('-s', '--split', default='test', help='What split of the data you want to test on')
+	parser.add_argument('-n', '--number', default=None, help='How many examples do you want to evaluate')
 	args = parser.parse_args()
 	return args
 
 
 def load_model_and_data(args):
+	print args
 	# Get model name
 	model_name = args.model
 	full_path = os.path.dirname(os.path.abspath(__file__))+'/models/' + model_name
@@ -42,9 +45,9 @@ def load_model_and_data(args):
 	global model
 	model = ASRModel()
 
-	print 'Loading test data'
-	global DL_test
-	DL_test = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split='test')
+	print 'Loading data'
+	global DL
+	DL = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split=args.split)
 
 
 	global results_dir
@@ -66,7 +69,7 @@ def test(args):
 
 		if args.restorefile:
 			print 'Restoring from ' + args.restorefile
-			saver.restore(sess, results_dir + '/' + restorefile)
+			saver.restore(sess, results_dir + '/' + args.restorefile)
 		else:
 			print 'No file given, restoring most recent'
 			ckpt = tf.train.get_checkpoint_state(results_dir)
@@ -74,9 +77,17 @@ def test(args):
 				print 'Restoring from ' + ckpt.model_checkpoint_path
 				saver.restore(sess, ckpt.model_checkpoint_path)
 
-		test_data = DL_test.data
+		test_data = DL.data
 		total_cer = 0.0
-		for i in range(DL_test.num_examples):
+		total_lens = 0.0
+		total_wer = 0.0
+		total_num_words = 0.0
+		total_ser = 0.0
+		num_to_evaluate = DL.num_examples
+		if args.number is not None:
+			num_to_evaluate = args.number
+		print 'Evaluating ' + str(num_to_evaluate) + ' examples' 
+		for i in range(int(num_to_evaluate)):
 			print 'Testing example', i
 			# Input a batch of size 1
 			input_features, seq_lens, labels, mask = tuple([elem[i] for elem in test_data])
@@ -89,13 +100,24 @@ def test(args):
 			scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
 			scores = scores[0]
 			preds = preds[0]
-			output_pred = DL_test.decode(preds)
-			output_real = DL_test.decode(list(labels[0]))
-                        print 'Predicted\n', output_pred
-                        print 'Real\n', output_real
+			output_pred = DL.decode(preds)
+			output_real = DL.decode(list(labels[0])[1:])
+			print '\n'
+			print 'Predicted\n', output_pred, '\n'
+			print 'Real\n', output_real
 			cer = editdistance.eval(output_real, output_pred)
+			wer = editdistance.eval(output_real.split(), output_pred.split())
 			total_cer += cer
-		print 'Average CER:', total_cer/num_examples
+			total_lens += len(output_real)
+			total_wer += wer
+			total_num_words += len(output_real.split())
+			total_ser += (1 - (output_real == output_pred))
+		print 'Total CER', total_cer
+		print 'Total Lens', total_lens
+		print 'Average CER:', total_cer/float(num_to_evaluate)
+		print 'Percent CER:', total_cer/float(total_lens)
+		print 'Percent WER:', total_wer/float(total_num_words)
+		print 'Percent SER:', total_ser/float(num_to_evaluate)
 
 
 
@@ -103,5 +125,6 @@ def test(args):
 
 if __name__=='__main__':
 	args = parse_arguments()
+	print 'Testing on ' + args.split + ' split'
 	load_model_and_data(args)
 	test(args)
