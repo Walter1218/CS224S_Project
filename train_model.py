@@ -146,8 +146,8 @@ def train(args):
 					print 'Iteration ' + str(iter_num)
 					print 'Training loss is', loss
 					val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=64)
-					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
-					print 'Val loss is', val_loss
+#					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
+#					print 'Val loss is', val_loss
 
 			print 'Epoch took ' + str(time.time() - start) + ' seconds'
 
