@@ -9,7 +9,7 @@ import numpy as np
 
 class DataLoader:
 
-	def __init__(self, dataset, max_input, max_output, normalize=False, split='train'):
+	def __init__(self, dataset, max_input, max_output, normalize=False, mean_vector=None, split='train'):
 		# Load the data from pickle file depending on input
 		self.max_input = max_input
 		self.max_output = max_output
@@ -44,7 +44,9 @@ class DataLoader:
 		self.batch_labels = []
 		self.sequence_lens = []
 		self.masks = []
-		for f in features.keys():
+
+		keys = sorted(features.keys())
+		for f in keys:
 
 			# Get the feature using the id as a key
 			feature = features[f]
@@ -52,9 +54,6 @@ class DataLoader:
 			# Ignore examples that fall out of the specified range
 			if feature.shape[1] > self.max_input or len(labels[f]) > self.max_output: 
 				continue
-
-			# Normalize features if you want
-			if self.normalize: feature = normalize(feature)
 
 			# Append padding to input features, and get sequence length
 			feature, sequence_len = self.pad_feature(feature)
@@ -69,18 +68,24 @@ class DataLoader:
 
 		# Convert lists to numpy arrays
 		self.input_ids = np.array(self.input_ids)
-		self.batch_features = np.array(self.batch_features)
+
 		self.batch_labels = np.array(self.batch_labels)
+
+		self.batch_features = np.array(self.batch_features)
+		# Normalize features if you want
+		if self.normalize:
+			if self.mean_vector is None:
+				self.mean_vector = np.mean(np.mean(self.batch_features, axis=2), axis=0)
+			self.batch_features = (self.batch_features.transpose((0,2,1)) - self.mean_vector).transpose((0,2,1))
+			
+		self.num_examples = self.batch_features.shape[0]
+		
 		self.sequence_lens = np.array(self.sequence_lens)
 		self.masks = np.array(self.masks)
+
 		self.data = [self.batch_features, self.sequence_lens, self.batch_labels, self.masks]
-		self.num_examples = self.batch_features.shape[0]
+		
 		print 'Loaded ' + str(self.num_examples) + ' examples!'
-
-
-	# TODO: how to do normalization?	
-	def normalize(feature):
-		return feature
 
 
 	def pad_feature(self, feature, side='post'):
