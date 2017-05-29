@@ -200,7 +200,7 @@ def split_and_save_transcripts(dataset, data_split, fp_to_id):
 
 
 if __name__ == "__main__":
-	dataset = 'wsj0_si'
+	dataset = 'wsj0'
 	data_split, fp_to_id = split_and_save_data(dataset)
 	#data_split = pickle.load(open('data_split.pkl', 'rb'))
 	#fp_to_id = pickle.load(open('data\\wsj0_si\\filepath_to_id_no.pkl', 'rb'))

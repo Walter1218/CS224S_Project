@@ -14,6 +14,7 @@ class DataLoader:
 		self.max_input = max_input
 		self.max_output = max_output
 		self.normalize = normalize
+		self.mean_vector = mean_vector
 		self.split = split
 		self.pad_char = 27
 		self.start_char = 28
