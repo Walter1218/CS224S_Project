@@ -17,7 +17,6 @@ from data_loader import DataLoader
 model = None
 DL_train = None
 DL_val = None
-
 '''
 Function: parse_arguments()
 ---------------------------
@@ -26,12 +25,13 @@ Parses the command line arguments and stores/returns them in args
 def parse_arguments():
 	parser = argparse.ArgumentParser(description='Trains an end-to-end neural ASR model')
 	parser.add_argument('-m', '--model', default='baseline', help="Model you would like to train")
-	parser.add_argument('-s', '--save', default=True, type=bool, help="Whether you would like to save the model, default is true.")
-	parser.add_argument('-n', '--resdir', default=None, help="Name of directory you would like to save results in")
+	parser.add_argument('-s', '--save', default=False, type=bool, help="Whether you would like to save the model, default is False.")
+	parser.add_argument('-e', '--experiment', default=None, help="Name of directory you would like to save results in, default is current date")
 	parser.add_argument('-rf', '--restorefile', default=None, help="What filename you would like to load the model from, default is None.")
 	parser.add_argument('-r', '--restore', default=False, help="Whether you would like to restore a saved model, default is False")
 	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
 	parser.add_argument('-g', '--gpu', default=None, help="GPU number you would like to use")
+	parser.add_argument('-n', '--normalize', default=False, type=bool, help="Whether you want to normalize MFCC features")
 	args = parser.parse_args()
 	return args
 
@@ -64,21 +64,21 @@ def load_model_and_data(args):
 	# Training data loader
 	print 'Loading training data...'
 	global DL_train
-	DL_train = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split='train')
+	DL_train = DataLoader(args.data, config.max_in_len, config.max_out_len, \
+				normalize=args.normalize, split='train')
 
 	# Validation data loader
 	print 'Loading validation data'
 	global DL_val
-	DL_val = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split='dev')
+	DL_val = DataLoader(args.data, config.max_in_len, config.max_out_len, \
+				normalize=args.normalize, mean_vector = DL_train.mean_vector ,split='dev')
 
 
 def create_results_dir(args):
-	if not args.save: 
-		return
 	parent_dir = 'results/' + args.model + '/'
 	global results_dir
-	if args.resdir:
-		results_dir = parent_dir + args.resdir
+	if args.experiment:
+		results_dir = parent_dir + args.experiment
 	else:
 		results_dir = parent_dir + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
@@ -97,8 +97,9 @@ def train(args):
 		# Writes summaries out to the given path
 		writer = tf.summary.FileWriter(results_dir, sess.graph)
 
-		# Saves the model to a file, or restores it
-		saver = tf.train.Saver(tf.trainable_variables())
+		if args.save:
+			# Saves the model to a file, or restores it
+			saver = tf.train.Saver(tf.trainable_variables())
 
 		# Load from saved model if argument is specified
 		if args.restore:
