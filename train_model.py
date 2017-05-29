@@ -29,7 +29,7 @@ def parse_arguments():
 	parser.add_argument('-s', '--save', default=True, type=bool, help="Whether you would like to save the model, default is true.")
 	parser.add_argument('-n', '--resdir', default=None, help="Name of directory you would like to save results in")
 	parser.add_argument('-rf', '--restorefile', default=None, help="What filename you would like to load the model from, default is None.")
-	parser.add_argument('-r', '--restore', default=False, help="Whether you would like to restore a saved model")
+	parser.add_argument('-r', '--restore', default=False, help="Whether you would like to restore a saved model, default is False")
 	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
 	parser.add_argument('-g', '--gpu', default=None, help="GPU number you would like to use")
 	args = parser.parse_args()
@@ -87,7 +87,7 @@ def train(args):
 
 	# Init function for all variables
 	init = tf.global_variables_initializer()
-        config2 = tf.ConfigProto(allow_soft_placement = True)
+	config2 = tf.ConfigProto(allow_soft_placement = True)
 	# Create a session
 	with tf.Session(config=config2) as sess:
 
@@ -128,7 +128,6 @@ def train(args):
 			start = time.time()
 			# For every batch
 			for iter_num in xrange(num_iters_per_epoch):
-
 				# Get training batch
 				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
 				
@@ -145,7 +144,7 @@ def train(args):
 				if iter_num % config.print_every == 0:
 					print 'Iteration ' + str(iter_num)
 					print 'Training loss is', loss
-					val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=64)
+					# val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=config.batch_size)
 #					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
 #					print 'Val loss is', val_loss
 
@@ -158,13 +157,14 @@ def train(args):
 			print 'Sample validation results:'
 			val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
 			val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
-			print 'Expected', val_labels[:, 1:21]
+			print 'Expected', val_labels[:, 1:22]
 			print 'Got', val_preds[:, :21]
+
 
 			print 'Sample train results:'
 			train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
 			train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
-			print 'Expected', train_labels[:, 1:21]
+			print 'Expected', train_labels[:, 1:22]
 			print 'Got', train_preds[:, :21]
 
 
@@ -180,7 +180,7 @@ if __name__ == '__main__':
 			create_results_dir(args)
 			train(args)
 	else:
-                load_model_and_data(args)
-                create_results_dir(args)
-                train(args)
+		load_model_and_data(args)
+		create_results_dir(args)
+		train(args)
 
