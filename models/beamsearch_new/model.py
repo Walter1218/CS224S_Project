@@ -23,6 +23,9 @@ class ASRModel:
 		# Define encoder structure
 		self.add_encoder()
 
+		# Add cell
+		self.add_cell()
+
 		# Define decoder structure
 		self.add_decoder()
 
@@ -86,18 +89,24 @@ class ASRModel:
 			self.memory = tf.concat(outputs, 2)
 			print 'Memory shape', self.memory.get_shape()
 
+	def add_cell(self):
+		cell = tf.contrib.rnn.GRUCell(num_units = config.encoder_hidden_size)
+		att_mech = tf.contrib.seq2seq.LuongAttention(num_units=config.decoder_hidden_size, memory=self.memory, \
+								memory_sequence_length = self.input_seq_lens)
+		self.decoder_cell = tf.contrib.seq2seq.DynamicAttentionWrapper(cell=cell, attention_mechanism=att_mech, \
+								attention_layer_size=config.decoder_hidden_size)
 
 	def add_decoder(self):
 		print 'Adding decoder'
 		scope='Decoder'
 		with tf.variable_scope(scope):
-			cell = MyAttCell(memory=self.memory, num_units = config.decoder_hidden_size)
+			# cell = MyAttCell(memory=self.memory, num_units = config.decoder_hidden_size)
 			# Reshape
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			outputs, _ = tf.contrib.legacy_seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = self.encoded,\
-												cell=cell, loop_function=None, scope=scope)
+												cell=self.cell, loop_function=None, scope=scope)
 			# Get variable
 			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), \
 								initializer=tf.contrib.layers.xavier_initializer())
@@ -136,7 +145,7 @@ class ASRModel:
 		with tf.variable_scope(scope, reuse=True):
 
 			# Use the same cell and output projection as in the decoder train case
-			cell = MyAttCell(memory=self.memory, num_units = config.decoder_hidden_size)
+			# cell = MyAttCell(memory=self.memory, num_units = config.decoder_hidden_size)
 			W = tf.get_variable('W')
 			b = tf.get_variable('b')
 
@@ -154,7 +163,7 @@ class ASRModel:
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
 			self.decoded, _ = beam_decoder(
-			    cell=cell,
+			    cell=self.cell,
 			    beam_size=config.num_beams,
 			    stop_token=29,
 			    initial_state=self.encoded,
@@ -179,7 +188,7 @@ class ASRModel:
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			outputs, _ = tf.contrib.legacy_seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = self.encoded,\
-												cell=cell, loop_function=loop_fn, scope=scope)
+												cell=self.cell, loop_function=loop_fn, scope=scope)
 
 			# Convert back to tensor
 			tensor_preds = tf.stack(outputs, axis=1)
@@ -230,18 +239,6 @@ class ASRModel:
 		for param in params:
 			print param
 		self.optimizer = tf.train.AdamOptimizer(learning_rate=config.lr).minimize(self.loss)
-		# optimizer = tf.train.AdamOptimizer(learning_rate=config.lr)
-		# gvs = optimizer.compute_gradients(self.loss)
-		# print gvas
-  #       # gs, vs = zip(*gvs)
-  #       # # Clip gradients only if self.config.clip_gradients is True.
-  #       # if config.clip_gradients:
-  #       #     gs, _ = tf.clip_by_global_norm(gs, config.max_grad_norm)
-  #       #     gvs = zip(gs, vs)
-  #       # # Remember to set self.grad_norm
-  #       # self.grad_norm = tf.global_norm(gs)
-  #       # tf.summary.scalar("Gradient Norm", self.grad_norm)
-  #       self.optimizer = optimizer.apply_gradients(gvas)
 
     # Merges all summaries
 	def add_summary_op(self):
