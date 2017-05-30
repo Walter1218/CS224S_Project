@@ -267,6 +267,13 @@ class ASRModel:
 	def test_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
 		feed_dict = self.create_feed_dict(inputs=test_inputs, seq_lens=test_seq_len,\
 										labels=test_targets)
+		test_preds = sess.run(self.decoded, feed_dict = feed_dict)
+		return None, test_preds
+
+	# Tests on a single batch of data
+	def test_greedy_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
+		feed_dict = self.create_feed_dict(inputs=test_inputs, seq_lens=test_seq_len,\
+										labels=test_targets)
 		test_preds = sess.run(self.greedy_decoded, feed_dict = feed_dict)
 		return None, test_preds
 

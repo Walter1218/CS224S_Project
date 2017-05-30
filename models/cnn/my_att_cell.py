@@ -47,7 +47,7 @@ class MyAttCell(tf.nn.rnn_cell.GRUCell):
         scores = tf.squeeze(scores, 1)
         probs = tf.nn.softmax(logits = scores)
 
-        probs = tf.expand_dims(probs, 1)
+        probs = tf.expand_dims(probs, [1])
         context = tf.matmul(probs, self.memory)
         context = tf.squeeze(context, [1])
 

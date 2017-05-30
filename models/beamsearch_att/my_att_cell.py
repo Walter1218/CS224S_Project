@@ -9,7 +9,8 @@ class MyAttCell(tf.nn.rnn_cell.GRUCell):
     def __init__(self, num_units, memory):
         super(MyAttCell, self).__init__(num_units=num_units)
         self.memory = memory
-        self.Wc = tf.get_variable('WcAtt', shape=(config.decoder_hidden_size + 2*config.encoder_hidden_size,\
+        print 'My memory shape', memory.get_shape()
+        self.Wc = tf.get_variable('WcAtt', shape=(config.decoder_hidden_size + memory.get_shape().as_list()[-1],\
                                 config.decoder_hidden_size), \
                                 initializer=tf.contrib.layers.xavier_initializer())
 
@@ -38,11 +39,12 @@ class MyAttCell(tf.nn.rnn_cell.GRUCell):
         Returns:
             a pair of the output vector and the new state vector.
         """
+ 
         cell_output, new_state = super(MyAttCell, self).__call__(inputs, state, scope)
 
         output = tf.expand_dims(cell_output, 1)
         scores = tf.matmul(output, self.memory, transpose_b=True)
-        scores = tf.squeeze(scores, 1)
+        scores = tf.squeeze(scores, [1])
         probs = tf.nn.softmax(logits = scores)
 
         probs = tf.expand_dims(probs, 1)
