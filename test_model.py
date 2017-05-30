@@ -51,11 +51,46 @@ def load_model_and_data(args):
 
 	print 'Loading data'
 	global DL
-	DL = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=args.normalize, mean_vector=DL_train.mean_vector, split=args.split)
 
+	# Since we've already loaded the training data for mean normalization
+	if args.split == 'train':
+		DL = DL_train
+	else:
+		DL = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=args.normalize, mean_vector=DL_train.mean_vector, split=args.split)
 
 	global results_dir
 	results_dir ='results/' + args.model + '/' + args.expdir
+
+'''
+Helper function that returns list of predictions
+'''
+def get_preds(sess, data, num):
+	test_data = [elem[:num] for elem in data]
+	i = 0
+	all_preds = []
+	all_labels = []
+	while i < num:
+		print 'i = ', i
+
+		# Batch indices to grab
+		min_i = i
+		max_i = i + config.batch_size
+
+		# Get the batch data
+		input_features, seq_lens, labels, masks = tuple([elem[min_i:max_i] for elem in test_data])
+		
+		# Test on this batch
+		scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
+		
+		# Append the predictions and corresponding labels
+		all_preds += list(preds)
+		all_labels += list(labels)
+
+		# Shift i
+		i += config.batch_size
+
+	# Return result
+	return all_preds, all_labels
 
 
 def test(args):
@@ -88,23 +123,32 @@ def test(args):
 		total_num_words = 0.0
 		total_ser = 0.0
 		num_to_evaluate = DL.num_examples
+
+		# Use the count passed in if there is one
 		if args.count is not None:
 			num_to_evaluate = args.count
 		print 'Evaluating ' + str(num_to_evaluate) + ' examples' 
+
+		# Get the predictions and labels in a batch fashion
+		all_preds, all_labels = get_preds(sess, test_data, int(num_to_evaluate))
+
+		# Loop over predictions and labels and compute error rate
 		for i in range(int(num_to_evaluate)):
 			print 'Testing example', i
 			# Input a batch of size 1
-			input_features, seq_lens, labels, mask = tuple([elem[i] for elem in test_data])
-			input_features = np.array([input_features])
-			seq_lens = np.array([seq_lens])
-			labels = np.array([labels])
-			mask = np.array([mask])
+			# input_features, seq_lens, labels, mask = tuple([elem[i] for elem in test_data])
+			# input_features = np.array([input_features])
+			# seq_lens = np.array([seq_lens])
+			# labels = np.array([labels])
+			# mask = np.array([mask])
 
-			# Test on this "batch"
-			scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
-			preds = preds[0]
-			output_pred = DL.decode(preds)
-			output_real = DL.decode(list(labels[0])[1:])
+			# # Test on this "batch"
+			# scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
+			# preds = preds[0]
+			pred = all_preds[i]
+			label = all_labels[i]
+			output_pred = DL.decode(list(pred))
+			output_real = DL.decode(list(label)[1:])
 			print '\n'
 			print 'Predicted\n', output_pred, '\n'
 			print 'Real\n', output_real
@@ -115,6 +159,8 @@ def test(args):
 			total_wer += wer
 			total_num_words += len(output_real.split())
 			total_ser += (1 - (output_real == output_pred))
+
+		# Print statistics
 		print 'Total CER', total_cer
 		print 'Total Lens', total_lens
 		print 'Average CER:', total_cer/float(num_to_evaluate)
