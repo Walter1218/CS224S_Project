@@ -24,7 +24,8 @@ def parse_arguments():
 	parser.add_argument('-rf', '--restorefile', default=None, help="What filename you would like to load the model from, default is None.")
 	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
 	parser.add_argument('-s', '--split', default='test', help='What split of the data you want to test on')
-	parser.add_argument('-n', '--number', default=None, help='How many examples do you want to evaluate')
+	parser.add_argument('-c', '--count', default=None, help='How many examples do you want to evaluate')
+	parser.add_argument('-n', '--normalize', default=False, type=bool, help='Whether you want to normalize features')
 	args = parser.parse_args()
 	return args
 
@@ -45,9 +46,12 @@ def load_model_and_data(args):
 	global model
 	model = ASRModel()
 
+	print 'Loading training data'
+	DL_train = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=args.normalize, split='train')
+
 	print 'Loading data'
 	global DL
-	DL = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split=args.split)
+	DL = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=args.normalize, mean_vector=DL_train.mean_vector, split=args.split)
 
 
 	global results_dir
@@ -84,8 +88,8 @@ def test(args):
 		total_num_words = 0.0
 		total_ser = 0.0
 		num_to_evaluate = DL.num_examples
-		if args.number is not None:
-			num_to_evaluate = args.number
+		if args.count is not None:
+			num_to_evaluate = args.count
 		print 'Evaluating ' + str(num_to_evaluate) + ' examples' 
 		for i in range(int(num_to_evaluate)):
 			print 'Testing example', i
@@ -98,7 +102,6 @@ def test(args):
 
 			# Test on this "batch"
 			scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
-			scores = scores[0]
 			preds = preds[0]
 			output_pred = DL.decode(preds)
 			output_real = DL.decode(list(labels[0])[1:])
