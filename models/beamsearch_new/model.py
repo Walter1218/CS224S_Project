@@ -44,7 +44,7 @@ class ASRModel:
 		print 'Adding placeholders'
 		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, config.num_input_features), name='inputs')
 		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, config.max_out_len + 2), name="target_seq")
-		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None), name='in_seq_lens')
+		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None,), name='in_seq_lens')
 		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, config.max_out_len + 2), name="mask")
 
 
@@ -90,12 +90,14 @@ class ASRModel:
 			print 'Memory shape', self.memory.get_shape()
 
 	def add_cell(self):
-		cell = tf.contrib.rnn.GRUCell(num_units = config.encoder_hidden_size)
+		cell = tf.contrib.rnn.GRUCell(num_units = config.decoder_hidden_size)
 		att_mech = tf.contrib.seq2seq.LuongAttention(num_units=config.decoder_hidden_size, memory=self.memory, \
 								memory_sequence_length = self.input_seq_lens)
-		self.decoder_cell = tf.contrib.seq2seq.DynamicAttentionWrapper(cell=cell, attention_mechanism=att_mech, \
+		self.decoder_cell = tf.contrib.seq2seq.AttentionWrapper(cell=cell, attention_mechanism=att_mech, \
 								attention_layer_size=config.decoder_hidden_size)
-
+		attn_zero = self.decoder_cell.zero_state(batch_size=tf.shape(self.encoded)[0], dtype=tf.float32)
+		self.init_state = attn_zero.clone(cell_state=self.encoded)
+		print 'Init state is', self.init_state.cell_state.shape
 	def add_decoder(self):
 		print 'Adding decoder'
 		scope='Decoder'
@@ -105,8 +107,8 @@ class ASRModel:
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			outputs, _ = tf.contrib.legacy_seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
-												initial_state = self.encoded,\
-												cell=self.cell, loop_function=None, scope=scope)
+												initial_state = self.init_state,\
+												cell=self.decoder_cell, loop_function=None, scope=scope)
 			# Get variable
 			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), \
 								initializer=tf.contrib.layers.xavier_initializer())
@@ -162,20 +164,20 @@ class ASRModel:
 				return tf.reshape(outputs, [original_shape[0], original_shape[1], config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
-			self.decoded, _ = beam_decoder(
-			    cell=self.cell,
-			    beam_size=config.num_beams,
-			    stop_token=29,
-			    initial_state=self.encoded,
-			    initial_input=start_tokens,
-			    tokens_to_inputs_fn=emb_fn,
-			    max_len=config.max_out_len,
-			    scope=scope,
-			    outputs_to_score_fn=output_fn,
-			    output_dense=True,
-			    cell_transform='replicate',
-			    score_upper_bound = 0.0
-			)
+#			self.decoded, _ = beam_decoder(
+#			    cell=self.decoder_cell,
+#			    beam_size=config.num_beams,
+#			    stop_token=29,
+#			    initial_state=self.init_state,
+#			    initial_input=start_tokens,
+#			    tokens_to_inputs_fn=emb_fn,
+#			    max_len=config.max_out_len,
+#			    scope=scope,
+#			    outputs_to_score_fn=output_fn,
+#			    output_dense=True,
+#			    cell_transform='replicate',
+#			    score_upper_bound = 0.0
+#			)
 
 
 			# Greedy decoder
@@ -187,8 +189,8 @@ class ASRModel:
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			outputs, _ = tf.contrib.legacy_seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
-												initial_state = self.encoded,\
-												cell=self.cell, loop_function=loop_fn, scope=scope)
+												initial_state = self.init_state,\
+												cell=self.decoder_cell, loop_function=loop_fn, scope=scope)
 
 			# Convert back to tensor
 			tensor_preds = tf.stack(outputs, axis=1)
@@ -264,7 +266,7 @@ class ASRModel:
 	def test_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
 		feed_dict = self.create_feed_dict(inputs=test_inputs, seq_lens=test_seq_len,\
 										labels=test_targets)
-		test_preds = sess.run(self.decoded, feed_dict = feed_dict)
+		test_preds = sess.run(self.greedy_decoded, feed_dict = feed_dict)
 		return None, test_preds
 
 	# Tests on a single batch of data
