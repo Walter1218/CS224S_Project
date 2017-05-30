@@ -26,6 +26,7 @@ def parse_arguments():
 	parser.add_argument('-s', '--split', default='test', help='What split of the data you want to test on')
 	parser.add_argument('-c', '--count', default=None, help='How many examples do you want to evaluate')
 	parser.add_argument('-n', '--normalize', default=False, type=bool, help='Whether you want to normalize features')
+	parser.add_argument('-g', '--gpu', default=None, type=int, help='Whether you want to run on a specific GPU')
 	args = parser.parse_args()
 	return args
 
@@ -97,8 +98,11 @@ def test(args):
 	# Init function for all variables
 	init = tf.global_variables_initializer()
 
+	# Allow soft placement on other GPUs
+	config2 = tf.ConfigProto(allow_soft_placement = True)
+
 	# Create a session
-	with tf.Session() as sess:
+	with tf.Session(config=config2) as sess:
 
 		# Run initialization
 		sess.run(init)
@@ -170,10 +174,13 @@ def test(args):
 
 
 
-
-
 if __name__=='__main__':
 	args = parse_arguments()
 	print 'Testing on ' + args.split + ' split'
 	load_model_and_data(args)
-	test(args)
+	if args.gpu:
+		with tf.device('/gpu:' + str(args.gpu)):
+			print 'Attempting to run with gpu ' + str(args.gpu)
+			test(args)
+	else:		
+		test(args)
