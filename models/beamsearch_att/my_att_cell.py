@@ -38,42 +38,6 @@ class MyAttCell(tf.nn.rnn_cell.GRUCell):
         Returns:
             a pair of the output vector and the new state vector.
         """
-        # scope = scope or type(self).__name__
-
-        # # It's always a good idea to scope variables in functions lest they
-        # # be defined elsewhere!
-        # with tf.variable_scope(scope):
-        #     ### YOUR CODE HERE ###
-        #     Wr = tf.get_variable("W_r", dtype=tf.float32, shape=(self.state_size, self.state_size),
-        #                          initializer=tf.contrib.layers.xavier_initializer())
-        #     Ur = tf.get_variable("U_r", dtype=tf.float32, shape=(self.input_size, self.state_size),
-        #                          initializer=tf.contrib.layers.xavier_initializer())
-        #     br = tf.get_variable("b_r", dtype=tf.float32, shape=(self.state_size,), initializer=tf.constant_initializer(0.0))
-
-        #     Wz = tf.get_variable("W_z", dtype=tf.float32, shape=(self.state_size, self.state_size),
-        #                          initializer=tf.contrib.layers.xavier_initializer())
-        #     Uz = tf.get_variable("U_z", dtype=tf.float32, shape=(self.input_size, self.state_size),
-        #                          initializer=tf.contrib.layers.xavier_initializer())
-        #     bz = tf.get_variable("b_z", dtype=tf.float32, shape=(self.state_size,), initializer=tf.constant_initializer(0.0))
-
-        #     Wo = tf.get_variable("W_o", dtype=tf.float32, shape=(self.state_size, self.state_size),
-        #                          initializer=tf.contrib.layers.xavier_initializer())
-        #     Uo = tf.get_variable("U_o", dtype=tf.float32, shape=(self.input_size, self.state_size),
-        #                          initializer=tf.contrib.layers.xavier_initializer())
-        #     bo = tf.get_variable("b_o", dtype=tf.float32, shape=(self.state_size,), initializer=tf.constant_initializer(0.0))
-
-        #     x = inputs
-        #     h = state
-
-        #     z = tf.nn.sigmoid(tf.matmul(x, Uz) + tf.matmul(h, Wz) + bz)
-        #     r = tf.nn.sigmoid(tf.matmul(x, Ur) + tf.matmul(h, Wr) + br)
-        #     o = tf.nn.tanh(tf.matmul(x, Uo) + tf.matmul(r*h, Wo) + bo)
-        #     new_state = z * h + (1-z) * o
-        #     ### END YOUR CODE ###
-        # # For a GRU, the output and state are the same (N.B. this isn't true
-        # # for an LSTM, though we aren't using one of those in our
-        # # assignment)
-        # output = new_state
         cell_output, new_state = super(MyAttCell, self).__call__(inputs, state, scope)
 
         output = tf.expand_dims(cell_output, 1)
@@ -87,9 +51,6 @@ class MyAttCell(tf.nn.rnn_cell.GRUCell):
 
         concat = tf.concat(1, [cell_output, context])
         final_output = tf.tanh(tf.matmul(concat, self.Wc))
-
-
-        # Output is now [Batch-Size, Hidden Size]
 
         return final_output, new_state
 

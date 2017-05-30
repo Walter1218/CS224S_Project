@@ -168,6 +168,33 @@ class ASRModel:
 			    score_upper_bound = 0.0
 			)
 
+
+			# Greedy decoder
+			def loop_fn(prev, i):
+				indices = tf.argmax(tf.matmul(prev, W) + b, axis=1)
+				return tf.nn.embedding_lookup(self.L, indices)
+
+
+			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
+			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
+			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
+												initial_state = self.encoded,\
+												cell=cell, loop_function=loop_fn, scope=scope)
+
+			# Convert back to tensor
+			tensor_preds = tf.stack(outputs, axis=1)
+
+			# Compute output_projection
+			original_shape = tf.shape(tensor_preds)
+			outputs_flat = tf.reshape(tensor_preds, [-1, config.decoder_hidden_size])
+			logits_flat = tf.matmul(outputs_flat, W) + b
+
+			# Reshape back to original
+			self.test_scores = tf.reshape(logits_flat, [original_shape[0], original_shape[1], config.vocab_size])
+			self.greedy_decoded = tf.argmax(self.test_scores, axis=2)
+
+
+
 	'''
 	function: add_loss_op
 	-------------------------
@@ -240,7 +267,7 @@ class ASRModel:
 	def test_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
 		feed_dict = self.create_feed_dict(inputs=test_inputs, seq_lens=test_seq_len,\
 										labels=test_targets)
-		test_preds = sess.run(self.decoded, feed_dict = feed_dict)
+		test_preds = sess.run(self.greedy_decoded, feed_dict = feed_dict)
 		return None, test_preds
 
 
