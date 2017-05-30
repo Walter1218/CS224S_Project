@@ -128,7 +128,7 @@ def train(args):
 
 			start = time.time()
 			# For every batch
-			for iter_num in xrange(10):
+			for iter_num in xrange(num_iters_per_epoch):
 				# Get training batch
 				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
 				
