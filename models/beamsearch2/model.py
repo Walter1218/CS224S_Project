@@ -141,7 +141,8 @@ class ASRModel:
 				original_shape = tf.shape(inputs)
 				outputs_flat = tf.reshape(inputs, [-1, config.decoder_hidden_size])
 				logits_flat = tf.matmul(outputs_flat, W) + b
-				return tf.reshape(logits_flat, [original_shape[0], original_shape[1], config.vocab_size])
+				logits = tf.reshape(logits_flat, [original_shape[0], original_shape[1], config.vocab_size])
+				return tf.nn.log_softmax(logits)
 
 			def emb_fn(tokens):
 				original_shape = tf.shape(tokens)
@@ -161,7 +162,8 @@ class ASRModel:
 			    scope=scope,
 			    outputs_to_score_fn=output_fn,
 			    output_dense=True,
-			    cell_transform='replicate'
+			    cell_transform='replicate',
+			    score_upper_bound = 0.0
 			)
 			params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
 			for param in params:
