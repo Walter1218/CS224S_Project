@@ -81,7 +81,7 @@ def get_preds(sess, data, num):
 		input_features, seq_lens, labels, masks = tuple([elem[min_i:max_i] for elem in test_data])
 		
 		# Test on this batch
-		scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
+		scores, preds = model.test_greedy_on_batch(sess, input_features, seq_lens, labels)
 		
 		# Append the predictions and corresponding labels
 		all_preds += list(preds)
