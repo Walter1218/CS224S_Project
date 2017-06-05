@@ -134,7 +134,7 @@ class ASRModel:
 												num_symbols = config.vocab_size,\
 												embedding_size=config.embedding_dim, \
 												output_projection=(W, b), \
-												feed_previous=False)
+												feed_previous=True)
 
 			# Convert back to tensor
 			tensor_preds = tf.stack(outputs, axis=1)

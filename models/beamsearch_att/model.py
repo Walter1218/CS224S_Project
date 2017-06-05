@@ -231,7 +231,7 @@ class ASRModel:
 		self.lr = tf.train.exponential_decay(config.lr, global_step,
                                              5000, 0.70, staircase=True)
 		tf.summary.scalar("Learning Rate", self.lr)
-		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.loss)
+		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.loss, global_step=global_step)
 
     # Merges all summaries
 	def add_summary_op(self):
