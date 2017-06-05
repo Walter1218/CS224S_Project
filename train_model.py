@@ -83,6 +83,13 @@ def create_results_dir(args):
 		results_dir = parent_dir + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
 
+def print_examples(labels, preds, DL):
+	for i in range(5):
+		print 'Expected'
+		print DL.decode(list(labels[i])[1:])
+		print 'Got'
+		print DL.decode(list(preds[i])) + '\n'
+
 def train(args):
 
 	# Init function for all variables
@@ -158,15 +165,17 @@ def train(args):
 			print 'Sample validation results:'
 			val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
 			val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
-			print 'Expected', val_labels[:, 1:22]
-			print 'Got', val_preds[:, :21]
+			print_examples(val_labels, val_preds, DL_val)
+			# print 'Expected', val_labels[:, 1:22]
+			# print 'Got', val_preds[:, :21]
 
 
 			print 'Sample train results:'
 			train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
 			train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
-			print 'Expected', train_labels[:, 1:22]
-			print 'Got', train_preds[:, :21]
+			print_examples(train_labels, train_preds, DL_train)
+			# print 'Expected', train_labels[:, 1:22]
+			# print 'Got', train_preds[:, :21]
 
 
 		print 'All done!'

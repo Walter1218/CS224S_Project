@@ -2,7 +2,7 @@
 num_input_features 	= 39
 encoder_hidden_size	= 100
 decoder_hidden_size	= 200
-embedding_dim 		= 120
+embedding_dim 		= 130
 vocab_size			= 30
 
 # Hyperparameters
