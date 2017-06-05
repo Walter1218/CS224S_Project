@@ -97,18 +97,24 @@ class ASRModel:
 		print 'Adding decoder'
 		scope='Decoder'
 		with tf.variable_scope(scope):
+
+			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), \
+								initializer=tf.contrib.layers.xavier_initializer())
+			b = tf.get_variable('b', shape=(config.vocab_size,), \
+								initializer=tf.constant_initializer(0.0))
+
+			# Greedy decoder
+			def loop_fn(prev, i):
+				indices = tf.argmax(tf.matmul(prev, W) + b, axis=1)
+				return tf.nn.embedding_lookup(self.L, indices)
+
 			# Reshape
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = init_state,\
-												cell=self.cell, loop_function=None, scope=scope)
-			# Get variable
-			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), \
-								initializer=tf.contrib.layers.xavier_initializer())
-			b = tf.get_variable('b', shape=(config.vocab_size,), \
-								initializer=tf.constant_initializer(0.0))
+												cell=self.cell, loop_function=loop_fn, scope=scope)		
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
