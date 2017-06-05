@@ -23,6 +23,8 @@ class ASRModel:
 		# Define encoder structure
 		self.add_encoder()
 
+		self.add_cell()
+
 		# Define decoder structure
 		self.add_decoder()
 
@@ -87,31 +89,26 @@ class ASRModel:
 			print 'Memory shape', self.memory.get_shape()
 
 
+	def add_cell(self):
+		cell = tf.nn.rnn_cell.GRUCell(num_units=config.decoder_hidden_size)
+		self.cell = MyAttCell(memory=self.memory, num_units=config.decoder_hidden_size, cell=cell)
+
 	def add_decoder(self):
 		print 'Adding decoder'
 		scope='Decoder'
 		with tf.variable_scope(scope):
-			cell = MyAttCell(memory=self.memory, num_units = config.decoder_hidden_size)
 			# Reshape
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
+			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
-												initial_state = self.encoded,\
-												cell=cell, loop_function=None, scope=scope)
+												initial_state = init_state,\
+												cell=self.cell, loop_function=None, scope=scope)
 			# Get variable
 			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), \
 								initializer=tf.contrib.layers.xavier_initializer())
 			b = tf.get_variable('b', shape=(config.vocab_size,), \
 								initializer=tf.constant_initializer(0.0))
-			
-			# # Convert decoder inputs to a list
-			# decoder_inputs = tf.unstack(self.labels_placeholder, axis=1)[:-1]
-			# outputs, _ = tf.contrib.legacy_seq2seq.embedding_rnn_decoder(decoder_inputs = decoder_inputs, \
-			# 									initial_state = self.encoded, cell = cell,\
-			# 									num_symbolsconfig.embedding_dim = config.vocab_size,\
-			# 									embedding_size=config.embedding_dim, \
-			# 									output_projection=(W, b), \
-			# 									feed_previous=False)
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
@@ -135,8 +132,7 @@ class ASRModel:
 		scope='Decoder'
 		with tf.variable_scope(scope, reuse=True):
 
-			# Use the same cell and output projection as in the decoder train case
-			cell = MyAttCell(memory=self.memory, num_units = config.decoder_hidden_size)
+			# Use the same output projection as in the decoder train case
 			W = tf.get_variable('W')
 			b = tf.get_variable('b')
 
@@ -153,11 +149,12 @@ class ASRModel:
 				return tf.reshape(outputs, [original_shape[0], original_shape[1], config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
+			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
 			self.decoded, _ = beam_decoder(
-			    cell=cell,
+			    cell=self.cell,
 			    beam_size=config.num_beams,
 			    stop_token=29,
-			    initial_state=self.encoded,
+			    initial_state=init_state,
 			    initial_input=start_tokens,
 			    tokens_to_inputs_fn=emb_fn,
 			    max_len=config.max_out_len,
@@ -178,8 +175,8 @@ class ASRModel:
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
-												initial_state = self.encoded,\
-												cell=cell, loop_function=loop_fn, scope=scope)
+												initial_state = init_state,\
+												cell=self.cell, loop_function=loop_fn, scope=scope)
 
 			# Convert back to tensor
 			tensor_preds = tf.stack(outputs, axis=1)

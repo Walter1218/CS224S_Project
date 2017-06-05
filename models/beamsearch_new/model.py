@@ -98,6 +98,8 @@ class ASRModel:
 		attn_zero = self.decoder_cell.zero_state(batch_size=tf.shape(self.encoded)[0], dtype=tf.float32)
 		self.init_state = attn_zero.clone(cell_state=self.encoded)
 		print 'Init state is', self.init_state.cell_state.shape
+
+		
 	def add_decoder(self):
 		print 'Adding decoder'
 		scope='Decoder'
@@ -164,20 +166,20 @@ class ASRModel:
 				return tf.reshape(outputs, [original_shape[0], original_shape[1], config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
-#			self.decoded, _ = beam_decoder(
-#			    cell=self.decoder_cell,
-#			    beam_size=config.num_beams,
-#			    stop_token=29,
-#			    initial_state=self.init_state,
-#			    initial_input=start_tokens,
-#			    tokens_to_inputs_fn=emb_fn,
-#			    max_len=config.max_out_len,
-#			    scope=scope,
-#			    outputs_to_score_fn=output_fn,
-#			    output_dense=True,
-#			    cell_transform='replicate',
-#			    score_upper_bound = 0.0
-#			)
+			self.decoded, _ = beam_decoder(
+			    cell=self.decoder_cell,
+			    beam_size=config.num_beams,
+			    stop_token=29,
+			    initial_state=self.init_state,
+			    initial_input=start_tokens,
+			    tokens_to_inputs_fn=emb_fn,
+			    max_len=config.max_out_len,
+			    scope=scope,
+			    outputs_to_score_fn=output_fn,
+			    output_dense=True,
+			    cell_transform='replicate',
+			    score_upper_bound = 0.0
+			)
 
 
 			# Greedy decoder

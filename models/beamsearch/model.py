@@ -41,11 +41,11 @@ class ASRModel:
 
 	def add_placeholders(self):
 		print 'Adding placeholders'
-		self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, None, config.num_input_features), name='inputs')
-		self.labels_placeholder = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_out_len + 2), name="target_seq")
-		self.input_seq_lens = tf.placeholder(tf.int32, shape=(config.batch_size), name='in_seq_lens')
+		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, config.num_input_features), name='inputs')
+		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, config.max_out_len + 2), name="target_seq")
+		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None,), name='in_seq_lens')
 		# self.dropout_placeholder = tf.placeholder(tf.float32, name='dropout_keep')
-		self.mask_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_out_len + 2), name="mask")
+		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, config.max_out_len + 2), name="mask")
 
 
 	def add_embedding(self):
@@ -89,7 +89,7 @@ class ASRModel:
 	def add_output_layer(self):
 		self.output_layer = Dense(units=config.vocab_size, \
 								kernel_initializer=tf.contrib.layers.xavier_initializer(), \
-								name='fc')
+								name='fc', use_bias=True)
 
 	def add_decoder(self):
 		print 'Adding decoder'
