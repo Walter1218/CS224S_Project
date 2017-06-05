@@ -226,19 +226,12 @@ class ASRModel:
 		params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
 		for param in params:
 			print param
-		self.optimizer = tf.train.AdamOptimizer(learning_rate=config.lr).minimize(self.loss)
-		# optimizer = tf.train.AdamOptimizer(learning_rate=config.lr)
-		# gvs = optimizer.compute_gradients(self.loss)
-		# print gvas
-  #       # gs, vs = zip(*gvs)
-  #       # # Clip gradients only if self.config.clip_gradients is True.
-  #       # if config.clip_gradients:
-  #       #     gs, _ = tf.clip_by_global_norm(gs, config.max_grad_norm)
-  #       #     gvs = zip(gs, vs)
-  #       # # Remember to set self.grad_norm
-  #       # self.grad_norm = tf.global_norm(gs)
-  #       # tf.summary.scalar("Gradient Norm", self.grad_norm)
-  #       self.optimizer = optimizer.apply_gradients(gvas)
+
+		global_step = tf.Variable(0, trainable=False)
+		self.lr = tf.train.exponential_decay(config.lr, global_step,
+                                             5000, 0.70, staircase=True)
+		tf.summary.scalar("Learning Rate", self.lr)
+		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.loss)
 
     # Merges all summaries
 	def add_summary_op(self):
@@ -264,14 +257,14 @@ class ASRModel:
 	def test_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
 		feed_dict = self.create_feed_dict(inputs=test_inputs, seq_lens=test_seq_len,\
 										labels=test_targets)
-		test_preds = sess.run(self.decoded, feed_dict = feed_dict)
+		test_preds = sess.run(self.greedy_decoded, feed_dict = feed_dict)
 		return None, test_preds
 
 	# Tests on a single batch of data
-	def test_greedy_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
+	def test_beam_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
 		feed_dict = self.create_feed_dict(inputs=test_inputs, seq_lens=test_seq_len,\
 										labels=test_targets)
-		test_preds = sess.run(self.greedy_decoded, feed_dict = feed_dict)
+		test_preds = sess.run(self.decoded, feed_dict = feed_dict)
 		return None, test_preds
 
 
