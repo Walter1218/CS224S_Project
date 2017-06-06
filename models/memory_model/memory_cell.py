@@ -14,59 +14,125 @@ class MyAttCell(tf.nn.rnn_cell.RNNCell):
         self.Wc = tf.get_variable('WcAtt', shape=(self.config.decoder_hidden_size + memory.get_shape().as_list()[-1],\
                                 self.config.decoder_hidden_size), \
                                 initializer=tf.contrib.layers.xavier_initializer())
+        self.W_ers = tf.get_variable('WErs', shape=(self.config.decoder_hidden_size,\
+                                self.config.decoder_hidden_size), \
+                                initializer=tf.contrib.layers.xavier_initializer())
+        self.W_add = tf.get_variable('WAdd', shape=(self.config.decoder_hidden_size,\
+                                self.config.decoder_hidden_size), \
+                                initializer=tf.contrib.layers.xavier_initializer())
+
+        self.w_rg = tf.get_variable('w_rg', shape=(self.config.decoder_hidden_size,), \
+                                initializer=tf.contrib.layers.xavier_initializer())
+
+        self.w_wg = tf.get_variable('w_wg', shape=(self.config.decoder_hidden_size,), \
+                                initializer=tf.contrib.layers.xavier_initializer())
+
 
     @property
     def state_size(self):
-        sizes = [self.config.decoder_hidden_size]
+
+        # Prev output attention vector, w_r, w_w
+        sizes = [self.config.decoder_hidden_size]*3
+
+        # Memory bank dimension
+        sizes += [(self.config.num_cells, self.config.decoder_hidden_size)]
+
+        # The previous hidden vector for each layer
         for i in range(self.config.num_dec_layers):
-            sizes.append(self.config.decoder_hidden_size)
+            sizes= [self.config.decoder_hidden_size] + sizes
+
+        # Convert into tuple
         return tuple(sizes)
 
     @property
     def output_size(self):
         return self.config.decoder_hidden_size
 
-    def __call__(self, inputs, state, scope=None):
-        """Updates the state using the previous @state and @inputs.
-        Remember the GRU equations are:
 
-        z_t = sigmoid(x_t U_z + h_{t-1} W_z + b_z)
-        r_t = sigmoid(x_t U_r + h_{t-1} W_r + b_r)
-        o_t = tanh(x_t U_o + r_t * h_{t-1} W_o + b_o)
-        h_t = z_t * h_{t-1} + (1 - z_t) * o_t
+    # Reads from the external memory bank
+    def read_memory(self, cell_output, M_B_prev, w_r_prev):
 
-        TODO: In the code below, implement an GRU cell using @inputs
-        (x_t above) and the state (h_{t-1} above).
-            - Define W_r, U_r, b_r, W_z, U_z, b_z and W_o, U_o, b_o to
-              be variables of the apporiate shape using the
-              `tf.get_variable' functions.
-            - Compute z, r, o and @new_state (h_t) defined above
-        Tips:
-            - Remember to initialize your matrices using the xavier
-              initialization as before.
-        Args:
-            inputs: is the input vector of size [None, self.input_size]
-            state: is the previous state vector of size [None, self.state_size]
-            scope: is the name of the scope to be used when defining the variables inside.
-        Returns:
-            a pair of the output vector and the new state vector.
-        """
-        prev_states, prev_attention = (state[:-1], state[-1])
-        new_inputs = tf.concat(1, [inputs, prev_attention])
-        cell_output, new_state = self.cell(new_inputs, prev_states, scope)
+        # Compute scores
         output = tf.expand_dims(cell_output, 1)
+        scores = tf.matmul(output, M_B_prev, transpose_b=True)
+        scores = tf.squeeze(scores, [1])
+
+        # Compute probability distribution over memory cells
+        w_r_tilde = tf.nn.softmax(logits = scores)
+
+        # Use gate to keep around information from last timestep
+        gate = tf.sigmoid(tf.matmul(cell_output, self.w_rg))
+        w_rt = (gate*w_r_prev) + (1 - gate)*(w_r_tilde)
+
+        # Compute the final weighted vector from the memory bank
+        w_rt_expanded = tf.expand_dims(probs, 1)
+        r_t = tf.matmul(w_rt_expanded, M_B_prev)
+        r_t = tf.squeeze(r_t, [1])
+
+        # Return final vector, and w_rt to pass along to next step
+        return r_t, w_rt 
+
+
+    def write_memory(self, s_t, M_B_prev, w_w_prev):
+        output = tf.expand_dims(s_t, 1)
+        scores = tf.matmul(output, M_B_prev, transpose_b=True)
+        scores = tf.squeeze(scores, [1])
+        w_w_tilde = tf.nn.softmax(logits = scores)
+        gate = tf.sigmoid(tf.matmul(s_t, self.w_wg))
+
+        # w_wt has size [Batch Size, Num Cells]
+        w_wt = (gate*w_w_prev) + (1 - gate)*(w_w_tilde)
+
+        # Erase first
+
+        #e_t has shape [Batch Size, Decoder Size]
+        e_t = tf.sigmoid(tf.matmul(s_t, self.W_ers))
+
+        # Should have shape [Batch Size, Num Cells, Decoder Size]
+        mult_matrix = 1 - tf.batch_matmul(tf.expand_dims(w_wt, 2), tf.expand_dims(e_t, 1))
+        
+        # Element-wise multiply
+        M_tilde = M_B_prev * mult_matrix
+
+        # Then ADD
+        add_t = tf.sigmoid(tf.matmul(s_t, self.W_add))
+
+        # Matrix for addition
+        add_matrix = 1 - tf.batch_matmul(tf.expand_dims(w_wt, 2), tf.expand_dims(add_t, 1))
+
+        M_new = M_tilde + add_matrix
+
+        return M_new, w_wt      
+
+    # State should contain previous GRU state, prev final attention vector, w_r, w_w, external memory
+    def __call__(self, inputs, state, scope=None):
+
+        # Extract information from previous state
+        prev_states, prev_attention, w_r_prev, w_w_prev, M_B_prev = (state[:self.config.num_dec_layers], state[-4], state[-3], state[-2], state[-1])
+        
+        # Use the previous attention vector and concatenate with input
+        new_inputs = tf.concat(1, [inputs, prev_attention])
+
+        # Get the new GRU state
+        cell_output, new_state = self.cell(new_inputs, prev_states, scope)
+
+        r_t, w_rt = self.read_memory(cell_output, M_B_prev, w_r_prev)
+
+        output = tf.expand_dims(r_t, 1)
         scores = tf.matmul(output, self.memory, transpose_b=True)
         scores = tf.squeeze(scores, [1])
         probs = tf.nn.softmax(logits = scores)
 
         probs = tf.expand_dims(probs, 1)
         context = tf.matmul(probs, self.memory)
-        context = tf.squeeze(context, [1])
+        s_t = tf.squeeze(context, [1])
 
-        concat = tf.concat(1, [cell_output, context])
+        M_B, w_wt = self.write(s_t, M_B_prev, w_w_prev)
+
+        concat = tf.concat(1, [s_t, r_t])
         attention_vec = tf.tanh(tf.matmul(concat, self.Wc))
 
-        next_state = tuple(list(new_state) + [attention_vec])
+        next_state = tuple(list(new_state) + [attention_vec, w_rt, w_wt, M_B])
 
         return attention_vec, next_state
 

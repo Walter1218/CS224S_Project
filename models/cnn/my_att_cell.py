@@ -17,9 +17,12 @@ class MyAttCell(tf.nn.rnn_cell.RNNCell):
 
     @property
     def state_size(self):
+        # Attention size
         sizes = [self.config.decoder_hidden_size]
-        for i in range(self.config.num_dec_layers):
-            sizes.append(self.config.decoder_hidden_size)
+
+        # Prepend layer sizes
+        for i in range(self.config.num_layers):
+            sizes = [self.config.decoder_hidden_size] + sizes
         return tuple(sizes)
 
     @property

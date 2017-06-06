@@ -80,44 +80,29 @@ class ASRModel:
 		print 'Adding encoder'
 		# Use a GRU to encode the inputs
 		with tf.variable_scope('Encoder'):
-
-			# Forward and backward cells for initial encoder
-			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-
-			# Run bidir RNN over initial inputs first
+			forward_cells = []
+			for i in range(self.config.num_layers):
+				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+				forward_cells.append(cell)
+			cell_fw = tf.nn.rnn_cell.MultiRNNCell(cells=forward_cells)
+			backward_cells = []
+			for i in range(self.config.num_layers):
+				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+				backward_cells.append(cell)
+			cell_bw = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
 			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
 											sequence_length=self.input_seq_lens, dtype=tf.float32)
 			
-			# Pass concatenated hidden states as inputs to CNN
-			h1_vals = tf.concat(2, outputs)
-
-			# First conv layer
-			filter_1 = tf.get_variable('filters1', shape=(4, h1_vals.get_shape().as_list()[-1], 100), \
-									initializer=tf.contrib.layers.xavier_initializer())
-			conv1 = tf.nn.relu(tf.nn.conv1d(value = h1_vals, filters = filter_1, \
-											stride = 2, padding = 'SAME', name = 'conv1'))
-
-			# Second conv layer
-			filter_2 = tf.get_variable('filters2', shape=(4, 100, 50), \
-									initializer=tf.contrib.layers.xavier_initializer())
-
-			conv2 = tf.nn.relu(tf.nn.conv1d(value = conv1, filters = filter_2, \
-											stride = 2, padding = 'SAME', name = 'conv2'))
-
-			# Lastly, run a single dynamic rnn over the resulting time series, and use
-			# corresponding states as memory
-			cell2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-			final_outputs, final_state = tf.nn.dynamic_rnn(cell=cell2, inputs=conv2, dtype=tf.float32)
-			self.encoded = final_state
-			self.memory = final_outputs
+			states = (states[0][-1], states[1][-1])
+			self.encoded = tf.concat(1, states)
+			self.memory = tf.concat(2, outputs)
 			print 'Memory shape', self.memory.get_shape()
-			print 'Encoded shape', self.encoded.get_shape()
+			print 'Encoded shape is', self.encoded.get_shape()
 
 
 	def add_cell(self):
 		cells = []
-		for i in range(self.config.num_layers):
+		for i in range(self.config.num_dec_layers):
 			cell = tf.nn.rnn_cell.GRUCell(num_units=self.config.decoder_hidden_size)
 			cells.append(cell)
 		cell = tf.nn.rnn_cell.MultiRNNCell(cells=cells)
@@ -144,7 +129,7 @@ class ASRModel:
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			init_state = [self.encoded]
-			for i in range(self.config.num_layers):
+			for i in range(self.config.num_dec_layers):
 				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
@@ -239,6 +224,7 @@ class ASRModel:
 			self.greedy_decoded = tf.argmax(self.test_scores, axis=2)
 
 
+
 	'''
 	function: add_loss_op
 	-------------------------
@@ -313,8 +299,3 @@ class ASRModel:
 										labels=test_targets)
 		test_preds = sess.run(self.decoded, feed_dict = feed_dict)
 		return None, test_preds
-
-
-
-
-

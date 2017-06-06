@@ -117,7 +117,7 @@ class ASRModel:
 
 	def add_cell(self):
 		cells = []
-		for i in range(self.config.num_dec_layers):
+		for i in range(self.config.num_layers):
 			cell = tf.nn.rnn_cell.GRUCell(num_units=self.config.decoder_hidden_size)
 			cells.append(cell)
 		cell = tf.nn.rnn_cell.MultiRNNCell(cells=cells)
@@ -144,7 +144,7 @@ class ASRModel:
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			init_state = [self.encoded]
-			for i in range(self.config.num_dec_layers):
+			for i in range(self.config.num_layers):
 				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
@@ -191,7 +191,7 @@ class ASRModel:
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
 			init_state = [self.encoded]
-			for i in range(self.config.num_dec_layers):
+			for i in range(self.config.num_layers):
 				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
 			self.decoded, _ = beam_decoder(
