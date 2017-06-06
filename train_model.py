@@ -34,6 +34,7 @@ def parse_arguments():
 	parser.add_argument('-n', '--normalize', default=False, type=bool, help="Whether you want to normalize MFCC features")
 	parser.add_argument('-b', '--batch_size', default=None, type=int, help="How many examples per batch")
 	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
+	parser.add_argument('-l', '--loop', default=None, help="How large the embedding dimension should be")
 	args = parser.parse_args()
 	return args
 
@@ -54,7 +55,7 @@ def load_model_and_data(args):
 	# Import the config and model from their respective files
 	global config
 	import config
-
+	config.loop = args.loop
 	if args.data == 'wsj':
 		config.max_in_len = 500
 		config.max_out_len = 200

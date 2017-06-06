@@ -88,6 +88,7 @@ class ASRModel:
 								initializer=tf.contrib.layers.xavier_initializer())
 			b = tf.get_variable('b', shape=(self.config.vocab_size,), \
 								initializer=tf.constant_initializer(0.0))
+			loop = self.config.loop
 			# Convert decoder inputs to a list
 			decoder_inputs = tf.unstack(self.labels_placeholder, axis=1)[:-1]
 			outputs, _ = tf.contrib.legacy_seq2seq.embedding_attention_decoder(decoder_inputs = decoder_inputs, \
@@ -96,7 +97,7 @@ class ASRModel:
 												num_symbols = self.config.vocab_size,\
 												embedding_size=self.config.embedding_dim, \
 												output_projection=(W, b), \
-												feed_previous=True)
+												feed_previous=loop)
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)

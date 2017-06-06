@@ -134,13 +134,17 @@ class ASRModel:
 				indices = tf.argmax(tf.matmul(prev, W) + b, axis=1)
 				return tf.nn.embedding_lookup(self.L, indices)
 
+			loop = None
+			if self.config.loop:
+				loop = loop_fn
+
 			# Reshape
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = init_state,\
-												cell=self.cell, loop_function=loop_fn, scope=scope)		
+												cell=self.cell, loop_function=loop, scope=scope)		
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
