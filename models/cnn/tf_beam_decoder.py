@@ -157,6 +157,7 @@ class BeamFlattenWrapper(tf.nn.rnn_cell.RNNCell):
         return res
 
     def prepend_beam_size(self, element):
+        print 'Element is', element
         return tf.TensorShape(self.beam_size).concatenate(element)
 
     def tile_along_beam(self, state):
@@ -208,6 +209,7 @@ class BeamReplicateWrapper(tf.nn.rnn_cell.RNNCell):
         self.beam_size = beam_size
 
     def prepend_beam_size(self, element):
+        print 'Element is', element
         return tf.TensorShape(self.beam_size).concatenate(element)
 
     def tile_along_beam(self, state):

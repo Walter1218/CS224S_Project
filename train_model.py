@@ -70,7 +70,10 @@ def load_model_and_data(args):
 
 	config.vocab_size = config.vocab_size + 3 #Special token for start, end, and pad
 	if args.batch_size:
-		config.batch_size = args.batch_size
+		config.batch_size = int(args.batch_size)
+
+	if args.embedding_size:
+		config.embedding_size = int(args.embedding_size)
 
 	print 'Current config:\n'
 	variables = zip(vars(config).keys(), vars(config).values())

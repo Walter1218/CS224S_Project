@@ -9,24 +9,19 @@ import numpy as np
 
 class DataLoader:
 
-	def __init__(self, dataset, max_input, max_output, normalize=False, mean_vector=None, split='train'):
+	def __init__(self, dataset, config=None, normalize=False, mean_vector=None, split='train'):
 		# Load the data from pickle file depending on input
-		self.max_input = max_input
-		self.max_output = max_output
+		self.max_input = config.max_in_len
+		self.max_output = config.max_out_len
 		self.normalize = normalize
 		self.mean_vector = mean_vector
 		self.split = split
-		self.pad_char = 27
-		self.start_char = 28
-		self.end_char = 29
+		self.pad_char = config.vocab_size - 3 #27
+		self.start_char = config.vocab_size - 2# 28
+		self.end_char = config.vocab_size - 1#29
 
 		self.ints_to_chars = {}
-		for i in range(26):
-			self.ints_to_chars[i] = chr(i + 97)
-		self.ints_to_chars[26] = ' '
-		self.ints_to_chars[self.pad_char] = '<PAD>'
-		self.ints_to_chars[self.start_char] = '<s>'
-		self.ints_to_chars[self.end_char] = '<e>'
+		self.create_mapping(dataset)
 
 		# Load the data depending on what split was specified
 		pathname = 'data/' + dataset+'/'
@@ -151,6 +146,18 @@ class DataLoader:
 	    return self.batch_features[rand_indices], self.sequence_lens[rand_indices], self.batch_labels[rand_indices], \
 	    		self.masks[rand_indices]
 
+	def create_mapping(self, dataset):
+		if dataset == 'tidigits':
+			for i in range(10):
+				self.ints_to_chars[i] = str(i)
+			self.ints_to_chars[10] = '0'
+		else:
+			for i in range(26):
+				self.ints_to_chars[i] = chr(i + 97)
+			self.ints_to_chars[26] = ' '
+		self.ints_to_chars[self.pad_char] = '<PAD>'
+		self.ints_to_chars[self.start_char] = '<s>'
+		self.ints_to_chars[self.end_char] = '<e>'
 
 	'''
 	Given an input sequences of indices, converts them into characters, and stops when
