@@ -139,9 +139,14 @@ class ASRModel:
 			# for i in range(self.config.num_dec_layers):
 			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
+
+			loop = None
+			if self.config.loop:
+				loop = loop_fn
+
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = init_state,\
-												cell=self.cell, loop_function=loop_fn, scope=scope)		
+												cell=self.cell, loop_function=loop, scope=scope)		
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
