@@ -4,7 +4,7 @@ Model definition for baseline seq-to-seq model.
 import tensorflow as tf
 from tf_beam_decoder import beam_decoder
 import numpy as np
-from my_att_cell import MyAttCell
+from memory_cell import MyMemCell
 
 class ASRModel:
 
@@ -92,21 +92,25 @@ class ASRModel:
 			cell_bw = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
 			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
 											sequence_length=self.input_seq_lens, dtype=tf.float32)
-			
-			states = (states[0][-1], states[1][-1])
-			self.encoded = tf.concat(1, states)
+			all_states = []
+			for i in range(self.config.num_layers):
+				all_states.append(tf.concat(1, (states[0][i], states[1][i])))
+			print 'All states', all_states
+			self.encoded = tuple(all_states)
+			# states = (states[0][-1], states[1][-1])
+			# self.encoded = tf.concat(1, states)
 			self.memory = tf.concat(2, outputs)
 			print 'Memory shape', self.memory.get_shape()
-			print 'Encoded shape is', self.encoded.get_shape()
+			# print 'Encoded shape is', self.encoded.get_shape()
 
 
 	def add_cell(self):
 		cells = []
-		for i in range(self.config.num_dec_layers):
+		for i in range(self.config.num_layers):
 			cell = tf.nn.rnn_cell.GRUCell(num_units=self.config.decoder_hidden_size)
 			cells.append(cell)
 		cell = tf.nn.rnn_cell.MultiRNNCell(cells=cells)
-		self.cell = MyAttCell(memory=self.memory, num_units=self.config.decoder_hidden_size, cell=cell, config=self.config)
+		self.cell = MyMemCell(memory=self.memory, num_units=self.config.decoder_hidden_size, cell=cell, config=self.config)
 		print 'Cell state size', self.cell.state_size
 
 
@@ -128,9 +132,12 @@ class ASRModel:
 			# Reshape
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
-			init_state = [self.encoded]
-			for i in range(self.config.num_dec_layers):
-				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = list(self.encoded) + \
+						[tf.zeros_like(self.encoded[0])] + \
+						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 + \
+						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
+			# for i in range(self.config.num_dec_layers):
+			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = init_state,\
@@ -175,9 +182,12 @@ class ASRModel:
 				return tf.reshape(outputs, [original_shape[0], original_shape[1], self.config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
-			init_state = [self.encoded]
-			for i in range(self.config.num_dec_layers):
-				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = list(self.encoded) + \
+						[tf.zeros_like(self.encoded[0])] + \
+						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 + \
+						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
+			# for i in range(self.config.num_dec_layers):
+			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
 			self.decoded, _ = beam_decoder(
 			    cell=self.cell,
