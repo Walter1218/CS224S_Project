@@ -3,7 +3,6 @@ Model definition for baseline seq-to-seq model.
 '''
 import tensorflow as tf
 import numpy as np
-import self.config
 
 class ASRModel:
 
