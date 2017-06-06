@@ -4,12 +4,13 @@ Model definition for baseline seq-to-seq model.
 import tensorflow as tf
 from tf_beam_decoder import beam_decoder
 import numpy as np
-import config
+import self.config
 from my_att_cell import MyAttCell
 
 class ASRModel:
 
-	def __init__(self):
+	def __init__(self, config):
+		self.config = config
 		self.build_graph()
 
 	def build_graph(self):
@@ -24,7 +25,7 @@ class ASRModel:
 		self.add_encoder()
 
 		# Store the custom cell
-		self.cell = MyAttCell(memory=self.memory, num_units = config.decoder_hidden_size)
+		self.cell = MyAttCell(memory=self.memory, num_units = self.config.decoder_hidden_size)
 
 		# Define decoder structure
 		self.add_decoder()
@@ -42,14 +43,14 @@ class ASRModel:
 
 	def add_placeholders(self):
 		print 'Adding placeholders'
-		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, config.num_input_features), name='inputs')
-		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, config.max_out_len + 2), name="target_seq")
+		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, self.config.num_input_features), name='inputs')
+		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.config.max_out_len + 2), name="target_seq")
 		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None), name='in_seq_lens')
-		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, config.max_out_len + 2), name="mask")
+		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, self.config.max_out_len + 2), name="mask")
 
 
 	def add_embedding(self):
-		self.L = tf.get_variable("L", dtype=tf.float32, shape=(config.vocab_size, config.embedding_dim))
+		self.L = tf.get_variable("L", dtype=tf.float32, shape=(self.config.vocab_size, self.config.embedding_dim))
 
 	def create_feed_dict(self, inputs, seq_lens=None, labels=None, mask=None, dropout=None):
 		'''
@@ -81,8 +82,8 @@ class ASRModel:
 		print 'Adding encoder'
 		# Use a GRU to encode the inputs
 		with tf.variable_scope('Encoder'):
-			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = config.encoder_hidden_size)
-			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = config.encoder_hidden_size)
+			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
 											sequence_length=self.input_seq_lens, dtype=tf.float32)
 			h1_vals = tf.concat(2, outputs)
@@ -97,7 +98,7 @@ class ASRModel:
 			conv2 = tf.nn.relu(tf.nn.conv1d(value = conv1, filters = filter_2, \
 											stride = 2, padding = 'SAME', name = 'conv2'))
 
-			cell2 = tf.nn.rnn_cell.GRUCell(num_units = config.encoder_hidden_size)
+			cell2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 			final_outputs, final_state = tf.nn.dynamic_rnn(cell=cell2, inputs=conv2, dtype=tf.float32)
 			self.encoded = final_state
 			self.memory = final_outputs
@@ -118,9 +119,9 @@ class ASRModel:
 												initial_state = self.encoded,\
 												cell=self.cell, loop_function=None, scope=scope)
 			# Get variable
-			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), \
+			W = tf.get_variable('W', shape=(self.config.decoder_hidden_size, self.config.vocab_size), \
 								initializer=tf.contrib.layers.xavier_initializer())
-			b = tf.get_variable('b', shape=(config.vocab_size,), \
+			b = tf.get_variable('b', shape=(self.config.vocab_size,), \
 								initializer=tf.constant_initializer(0.0))
 
 			# Convert outputs back into Tensor
@@ -128,11 +129,11 @@ class ASRModel:
 
 			# Compute dot product
 			original_shape = tf.shape(tensor_preds)
-			outputs_flat = tf.reshape(tensor_preds, [-1, config.decoder_hidden_size])
+			outputs_flat = tf.reshape(tensor_preds, [-1, self.config.decoder_hidden_size])
 			logits_flat = tf.matmul(outputs_flat, W) + b
 
 			# Reshape back into 3D
-			self.logits = tf.reshape(logits_flat, [original_shape[0], original_shape[1], config.vocab_size])
+			self.logits = tf.reshape(logits_flat, [original_shape[0], original_shape[1], self.config.vocab_size])
 			print 'Logits shape', self.logits.get_shape()
 
 
@@ -150,25 +151,25 @@ class ASRModel:
 
 			def output_fn(inputs):
 				original_shape = tf.shape(inputs)
-				outputs_flat = tf.reshape(inputs, [-1, config.decoder_hidden_size])
+				outputs_flat = tf.reshape(inputs, [-1, self.config.decoder_hidden_size])
 				logits_flat = tf.matmul(outputs_flat, W) + b
-				logits = tf.reshape(logits_flat, [original_shape[0], original_shape[1], config.vocab_size])
+				logits = tf.reshape(logits_flat, [original_shape[0], original_shape[1], self.config.vocab_size])
 				return tf.nn.log_softmax(logits)
 
 			def emb_fn(tokens):
 				original_shape = tf.shape(tokens)
 				outputs = tf.nn.embedding_lookup(self.L, tokens)
-				return tf.reshape(outputs, [original_shape[0], original_shape[1], config.embedding_dim])
+				return tf.reshape(outputs, [original_shape[0], original_shape[1], self.config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
 			self.decoded, _ = beam_decoder(
 			    cell=self.cell,
-			    beam_size=config.num_beams,
+			    beam_size=self.config.num_beams,
 			    stop_token=29,
 			    initial_state=self.encoded,
 			    initial_input=start_tokens,
 			    tokens_to_inputs_fn=emb_fn,
-			    max_len=config.max_out_len,
+			    max_len=self.config.max_out_len,
 			    scope=scope,
 			    outputs_to_score_fn=output_fn,
 			    output_dense=True,
@@ -210,14 +211,14 @@ class ASRModel:
 		params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
 		for param in params:
 			print param
-		self.optimizer = tf.train.AdamOptimizer(learning_rate=config.lr).minimize(self.loss)
-		# optimizer = tf.train.AdamOptimizer(learning_rate=config.lr)
+		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(self.loss)
+		# optimizer = tf.train.AdamOptimizer(learning_rate=self.config.lr)
 		# gvs = optimizer.compute_gradients(self.loss)
 		# print gvas
   #       # gs, vs = zip(*gvs)
-  #       # # Clip gradients only if self.config.clip_gradients is True.
-  #       # if config.clip_gradients:
-  #       #     gs, _ = tf.clip_by_global_norm(gs, config.max_grad_norm)
+  #       # # Clip gradients only if self.self.config.clip_gradients is True.
+  #       # if self.config.clip_gradients:
+  #       #     gs, _ = tf.clip_by_global_norm(gs, self.config.max_grad_norm)
   #       #     gvs = zip(gs, vs)
   #       # # Remember to set self.grad_norm
   #       # self.grad_norm = tf.global_norm(gs)

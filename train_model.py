@@ -32,6 +32,7 @@ def parse_arguments():
 	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
 	parser.add_argument('-g', '--gpu', default=None, help="GPU number you would like to use")
 	parser.add_argument('-n', '--normalize', default=False, type=bool, help="Whether you want to normalize MFCC features")
+	parser.add_argument('-b', '--batch_size', default=None, type=int, help="How many examples per batch")
 	args = parser.parse_args()
 	return args
 
@@ -52,26 +53,46 @@ def load_model_and_data(args):
 	# Import the config and model from their respective files
 	global config
 	import config
-	with open(full_path + '/config.py') as f:
-		print f.read()
+
+	if args.data == 'wsj':
+		config.max_in_len = 500
+		config.max_out_len = 200
+		config.vocab_size = 27
+	elif args.data == 'chime2_grid':
+		config.max_in_len = 100
+		config.max_out_len = 30
+		config.vocab_size = 27
+	elif args.data == 'tidigits':
+		config.max_in_len = 170
+		config.max_out_len = 7
+		config.vocab_size = 11
+
+	config.vocab_size = config.vocab_size + 3 #Special token for start, end, and pad
+	if args.batch_size:
+		config.batch_size = args.batch_size
+
+	print 'Current config:\n'
+	variables = zip(vars(config).keys(), vars(config).values())
+	for var, val in sorted(variables):
+		print var + ' = ' + str(val)
 
 
 	print 'Creating graph...'
 	from model import ASRModel
 	global model
-	model = ASRModel()
+	model = ASRModel(config)
 
 	# Training data loader
 	print 'Loading training data...'
 	global DL_train
-	DL_train = DataLoader(args.data, config.max_in_len, config.max_out_len, \
+	DL_train = DataLoader(args.data, config=config, \
 				normalize=args.normalize, split='train')
 
 	# Validation data loader
 	print 'Loading validation data'
 	global DL_val
-	DL_val = DataLoader(args.data, config.max_in_len, config.max_out_len, \
-				normalize=args.normalize, mean_vector = DL_train.mean_vector ,split='dev')
+	DL_val = DataLoader(args.data, config=config, \
+				normalize=args.normalize, mean_vector = DL_train.mean_vector, split='dev')
 
 
 def create_results_dir(args):
@@ -166,17 +187,13 @@ def train(args):
 			val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
 			val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
 			print_examples(val_labels, val_preds, DL_val)
-			# print 'Expected', val_labels[:, 1:22]
-			# print 'Got', val_preds[:, :21]
+
 
 
 			print 'Sample train results:'
 			train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
 			train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
 			print_examples(train_labels, train_preds, DL_train)
-			# print 'Expected', train_labels[:, 1:22]
-			# print 'Got', train_preds[:, :21]
-
 
 		print 'All done!'
 

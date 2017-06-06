@@ -42,13 +42,31 @@ def load_model_and_data(args):
 	global config
 	import config
 
+	if args.data == 'wsj':
+		config.max_in_len = 500
+		config.max_out_len = 200
+		config.vocab_size = 27
+	elif args.data = 'chime2_grid':
+		config.max_in_len = 100
+		config.max_out_len = 30
+		config.vocab_size = 27
+	elif args.data = 'tidigits':
+		config.max_in_len = 170
+		config.max_out_len = 7
+		config.vocab_size = 11
+
+	print 'Current config:\n'
+    variables = zip(vars(config).keys(), vars(config).values())
+    for var, val in sorted(variables):
+        print var + ' = ' + str(val)
+
 	print 'Creating graph...'
 	from model import ASRModel
 	global model
-	model = ASRModel()
+	model = ASRModel(config)
 
 	print 'Loading training data'
-	DL_train = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=args.normalize, split='train')
+	DL_train = DataLoader(args.data, config=config, normalize=args.normalize, split='train')
 
 	print 'Loading data'
 	global DL
@@ -57,7 +75,7 @@ def load_model_and_data(args):
 	if args.split == 'train':
 		DL = DL_train
 	else:
-		DL = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=args.normalize, mean_vector=DL_train.mean_vector, split=args.split)
+		DL = DataLoader(args.data, config=config, normalize=args.normalize, mean_vector=DL_train.mean_vector, split=args.split)
 
 	global results_dir
 	results_dir ='results/' + args.model + '/' + args.expdir
