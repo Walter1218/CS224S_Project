@@ -23,7 +23,6 @@ class ASRModel:
 		# Define encoder structure
 		self.add_encoder()
 
-		# Add cell
 		self.add_cell()
 
 		# Define decoder structure
@@ -44,7 +43,7 @@ class ASRModel:
 		print 'Adding placeholders'
 		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, self.config.num_input_features), name='inputs')
 		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.config.max_out_len + 2), name="target_seq")
-		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None,), name='in_seq_lens')
+		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None), name='in_seq_lens')
 		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, self.config.max_out_len + 2), name="mask")
 
 
@@ -81,50 +80,67 @@ class ASRModel:
 		print 'Adding encoder'
 		# Use a GRU to encode the inputs
 		with tf.variable_scope('Encoder'):
-			cell_fw = tf.contrib.rnn.GRUCell(num_units = self.config.encoder_hidden_size)
-			cell_bw = tf.contrib.rnn.GRUCell(num_units = self.config.encoder_hidden_size)
+
+			# Forward and backward cells for initial encoder
+			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+
+			# Run bidir RNN over initial inputs first
 			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
 											sequence_length=self.input_seq_lens, dtype=tf.float32)
-			self.encoded = tf.concat(states, 1)
-			self.memory = tf.concat(outputs, 2)
+			
+			# Pass concatenated hidden states as inputs to CNN
+			h1_vals = tf.concat(2, outputs)
+
+			# First conv layer
+			filter_1 = tf.get_variable('filters1', shape=(4, h1_vals.get_shape().as_list()[-1], 100), \
+									initializer=tf.contrib.layers.xavier_initializer())
+			conv1 = tf.nn.relu(tf.nn.conv1d(value = h1_vals, filters = filter_1, \
+											stride = 2, padding = 'SAME', name = 'conv1'))
+
+			# Second conv layer
+			filter_2 = tf.get_variable('filters2', shape=(4, 100, 50), \
+									initializer=tf.contrib.layers.xavier_initializer())
+
+			conv2 = tf.nn.relu(tf.nn.conv1d(value = conv1, filters = filter_2, \
+											stride = 2, padding = 'SAME', name = 'conv2'))
+
+			# Lastly, run a single dynamic rnn over the resulting time series, and use
+			# corresponding states as memory
+			cell2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			final_outputs, final_state = tf.nn.dynamic_rnn(cell=cell2, inputs=conv2, dtype=tf.float32)
+			self.encoded = final_state
+			self.memory = final_outputs
 			print 'Memory shape', self.memory.get_shape()
+			print 'Encoded shape', self.encoded.get_shape()
+
 
 	def add_cell(self):
-		cell = tf.contrib.rnn.GRUCell(num_units = self.config.decoder_hidden_size)
-		att_mech = tf.contrib.seq2seq.LuongAttention(num_units=self.config.decoder_hidden_size, memory=self.memory, \
-								memory_sequence_length = self.input_seq_lens)
-		self.decoder_cell = tf.contrib.seq2seq.AttentionWrapper(cell=cell, attention_mechanism=att_mech, \
-								attention_layer_size=self.config.decoder_hidden_size)
-		attn_zero = self.decoder_cell.zero_state(batch_size=tf.shape(self.encoded)[0], dtype=tf.float32)
-		self.init_state = attn_zero.clone(cell_state=self.encoded)
-		print 'Init state is', self.init_state.cell_state.shape
+		cell = tf.nn.rnn_cell.GRUCell(num_units=self.config.decoder_hidden_size)
+		self.cell = MyAttCell(memory=self.memory, num_units=self.config.decoder_hidden_size, cell=cell)
 
-		
 	def add_decoder(self):
 		print 'Adding decoder'
 		scope='Decoder'
 		with tf.variable_scope(scope):
-			# cell = MyAttCell(memory=self.memory, num_units = self.config.decoder_hidden_size)
-			# Reshape
-			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
-			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
-			outputs, _ = tf.contrib.legacy_seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
-												initial_state = self.init_state,\
-												cell=self.decoder_cell, loop_function=None, scope=scope)
-			# Get variable
+
 			W = tf.get_variable('W', shape=(self.config.decoder_hidden_size, self.config.vocab_size), \
 								initializer=tf.contrib.layers.xavier_initializer())
 			b = tf.get_variable('b', shape=(self.config.vocab_size,), \
 								initializer=tf.constant_initializer(0.0))
-			
-			# # Convert decoder inputs to a list
-			# decoder_inputs = tf.unstack(self.labels_placeholder, axis=1)[:-1]
-			# outputs, _ = tf.contrib.legacy_seq2seq.embedding_rnn_decoder(decoder_inputs = decoder_inputs, \
-			# 									initial_state = self.encoded, cell = cell,\
-			# 									num_symbolsself.config.embedding_dim = self.config.vocab_size,\
-			# 									embedding_size=self.config.embedding_dim, \
-			# 									output_projection=(W, b), \
-			# 									feed_previous=False)
+
+			# Greedy decoder
+			def loop_fn(prev, i):
+				indices = tf.argmax(tf.matmul(prev, W) + b, axis=1)
+				return tf.nn.embedding_lookup(self.L, indices)
+
+			# Reshape
+			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
+			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
+			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
+			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
+												initial_state = init_state,\
+												cell=self.cell, loop_function=loop_fn, scope=scope)		
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
@@ -148,8 +164,7 @@ class ASRModel:
 		scope='Decoder'
 		with tf.variable_scope(scope, reuse=True):
 
-			# Use the same cell and output projection as in the decoder train case
-			# cell = MyAttCell(memory=self.memory, num_units = self.config.decoder_hidden_size)
+			# Use the same output projection as in the decoder train case
 			W = tf.get_variable('W')
 			b = tf.get_variable('b')
 
@@ -166,11 +181,12 @@ class ASRModel:
 				return tf.reshape(outputs, [original_shape[0], original_shape[1], self.config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
+			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
 			self.decoded, _ = beam_decoder(
-			    cell=self.decoder_cell,
+			    cell=self.cell,
 			    beam_size=self.config.num_beams,
 			    stop_token=self.config.vocab_size - 1,
-			    initial_state=self.init_state,
+			    initial_state=init_state,
 			    initial_input=start_tokens,
 			    tokens_to_inputs_fn=emb_fn,
 			    max_len=self.config.max_out_len,
@@ -190,9 +206,9 @@ class ASRModel:
 
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
-			outputs, _ = tf.contrib.legacy_seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
-												initial_state = self.init_state,\
-												cell=self.decoder_cell, loop_function=loop_fn, scope=scope)
+			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
+												initial_state = init_state,\
+												cell=self.cell, loop_function=loop_fn, scope=scope)
 
 			# Convert back to tensor
 			tensor_preds = tf.stack(outputs, axis=1)
@@ -242,7 +258,12 @@ class ASRModel:
 		params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
 		for param in params:
 			print param
-		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(self.loss)
+
+		global_step = tf.Variable(0, trainable=False)
+		self.lr = tf.train.exponential_decay(self.config.lr, global_step,
+                                             5000, 0.70, staircase=True)
+		tf.summary.scalar("Learning Rate", self.lr)
+		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.loss, global_step=global_step)
 
     # Merges all summaries
 	def add_summary_op(self):
@@ -272,10 +293,13 @@ class ASRModel:
 		return None, test_preds
 
 	# Tests on a single batch of data
-	def test_greedy_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
+	def test_beam_on_batch(self, sess, test_inputs, test_seq_len, test_targets):
 		feed_dict = self.create_feed_dict(inputs=test_inputs, seq_lens=test_seq_len,\
 										labels=test_targets)
-		test_preds = sess.run(self.greedy_decoded, feed_dict = feed_dict)
+		test_preds = sess.run(self.decoded, feed_dict = feed_dict)
 		return None, test_preds
+
+
+
 
 

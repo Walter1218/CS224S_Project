@@ -224,7 +224,7 @@ class ASRModel:
 			print 'First tokens', tiled_first_tokens
 			beam_search_decoder = tf.contrib.seq2seq.BeamSearchDecoder(cell=self.beam_decoder_cell, embedding=self.L,\
 													start_tokens=tiled_first_tokens, \
-													end_token=29, initial_state=self.init_beam_state,\
+													end_token=self.config.vocab_size - 1, initial_state=self.init_beam_state,\
 													beam_width=self.config.num_beams, output_layer=self.output_layer, length_penalty_weight=0.0)
 
 			final_outputs, final_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(beam_search_decoder, \
@@ -256,7 +256,7 @@ class ASRModel:
 			# self.decoded, _ = beam_decoder(
 			#     cell=self.decoder_cell,
 			#     beam_size=self.config.num_beams,
-			#     stop_token=29,
+			#     stop_token=config.vocab_size - 1,
 			#     initial_state=self.init_state,
 			#     initial_input=start_tokens,
 			#     tokens_to_inputs_fn=emb_fn,

@@ -33,6 +33,7 @@ def parse_arguments():
 	parser.add_argument('-g', '--gpu', default=None, help="GPU number you would like to use")
 	parser.add_argument('-n', '--normalize', default=False, type=bool, help="Whether you want to normalize MFCC features")
 	parser.add_argument('-b', '--batch_size', default=None, type=int, help="How many examples per batch")
+	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
 	args = parser.parse_args()
 	return args
 

@@ -153,7 +153,7 @@ class ASRModel:
 			# decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			beam_search_decoder = tf.contrib.seq2seq.BeamSearchDecoder(cell=cell, embedding=self.L,\
 													start_tokens=self.labels_placeholder[:, 0], \
-													end_token=29, initial_state=init_state,\
+													end_token=self.config.vocab_size - 1, initial_state=init_state,\
 													beam_width=self.config.num_beams, output_layer=self.output_layer)
 
 			final_outputs, final_state, final_seq_lens = tf.contrib.seq2seq.dynamic_decode(beam_search_decoder, impute_finished=False, scope=scope)

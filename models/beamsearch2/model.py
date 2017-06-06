@@ -154,7 +154,7 @@ class ASRModel:
 			self.decoded, _ = beam_decoder(
 			    cell=cell,
 			    beam_size=self.config.num_beams,
-			    stop_token=29,
+			    stop_token=self.config.vocab_size - 1,
 			    initial_state=self.encoded,
 			    initial_input=start_tokens,
 			    tokens_to_inputs_fn=emb_fn,
