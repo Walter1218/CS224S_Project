@@ -219,7 +219,7 @@ class ASRModel:
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = init_state,\
-												cell=self.cell, loop_function=loop, scope=scope)
+												cell=self.cell, loop_function=loop_fn, scope=scope)
 
 			# Convert back to tensor
 			tensor_preds = tf.stack(outputs, axis=1)
