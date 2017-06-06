@@ -101,8 +101,14 @@ class ASRModel:
 
 
 	def add_cell(self):
-		cell = tf.nn.rnn_cell.GRUCell(num_units=self.config.decoder_hidden_size)
-		self.cell = MyAttCell(memory=self.memory, num_units=self.config.decoder_hidden_size, cell=cell)
+		cells = []
+		for i in range(self.config.num_dec_layers):
+			cell = tf.nn.rnn_cell.GRUCell(num_units=self.config.decoder_hidden_size)
+			cells.append(cell)
+		cell = tf.nn.rnn_cell.MultiRNNCell(cells=cells)
+		self.cell = MyAttCell(memory=self.memory, num_units=self.config.decoder_hidden_size, cell=cell, config=self.config)
+		print 'Cell state size', self.cell.state_size
+
 
 	def add_decoder(self):
 		print 'Adding decoder'
@@ -122,7 +128,10 @@ class ASRModel:
 			# Reshape
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
-			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = [self.encoded]
+			for i in range(self.config.num_dec_layers):
+				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = tuple(init_state)
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = init_state,\
 												cell=self.cell, loop_function=loop_fn, scope=scope)		
@@ -166,7 +175,10 @@ class ASRModel:
 				return tf.reshape(outputs, [original_shape[0], original_shape[1], self.config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
-			init_state = (self.encoded, tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = [self.encoded]
+			for i in range(self.config.num_dec_layers):
+				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = tuple(init_state)
 			self.decoded, _ = beam_decoder(
 			    cell=self.cell,
 			    beam_size=self.config.num_beams,

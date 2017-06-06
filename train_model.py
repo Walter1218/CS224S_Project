@@ -36,6 +36,7 @@ def parse_arguments():
 	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
 	parser.add_argument('-l', '--loop', default=None, help="How large the embedding dimension should be")
 	parser.add_argument('-nl', '--num_layers', default=1, type=int, help="How many layers to use for encoder")
+	parser.add_argument('-ndl', '--num_dec_layers', default=1, type=int, help="How many layers to use for decoder")
 	args = parser.parse_args()
 	return args
 
@@ -58,6 +59,7 @@ def load_model_and_data(args):
 	import config
 	config.loop = args.loop
 	config.num_layers = args.num_layers
+	config.num_dec_layers = args.num_dec_layers
 	if args.data == 'wsj':
 		config.max_in_len = 500
 		config.max_out_len = 200
@@ -164,6 +166,7 @@ def train(args):
 			start = time.time()
 			# For every batch
 			for iter_num in xrange(num_iters_per_epoch):
+				print iter_num
 				# Get training batch
 				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
 				

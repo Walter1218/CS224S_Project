@@ -1,30 +1,31 @@
 import tensorflow as tf
 import numpy as np
-import config
 
 class MyAttCell(tf.nn.rnn_cell.RNNCell):
     """Wrapper around our GRU cell implementation that allows us to play
     nicely with TensorFlow.
     """
-    def __init__(self, num_units, memory, cell):
+    def __init__(self, num_units, memory, cell, config):
         # super(MyAttCell, self).__init__(num_units=num_units)
         self.memory = memory
         # print 'My memory shape', memory.get_shape()
         self.cell = cell
-        self.Wc = tf.get_variable('WcAtt', shape=(config.decoder_hidden_size + memory.get_shape().as_list()[-1],\
-                                config.decoder_hidden_size), \
+        self.config = config
+        self.Wc = tf.get_variable('WcAtt', shape=(self.config.decoder_hidden_size + memory.get_shape().as_list()[-1],\
+                                self.config.decoder_hidden_size), \
                                 initializer=tf.contrib.layers.xavier_initializer())
 
     @property
     def state_size(self):
-        return (config.decoder_hidden_size, config.decoder_hidden_size)
+        sizes = [self.config.decoder_hidden_size]
+        for i in range(self.config.num_dec_layers):
+            sizes.append(self.config.decoder_hidden_size)
+        return tuple(sizes)
 
     @property
     def output_size(self):
-        return config.decoder_hidden_size
+        return self.config.decoder_hidden_size
 
-
-    # State needs to contain (prev_h, memory bank, w_r, w_w)
     def __call__(self, inputs, state, scope=None):
         """Updates the state using the previous @state and @inputs.
         Remember the GRU equations are:
@@ -50,11 +51,9 @@ class MyAttCell(tf.nn.rnn_cell.RNNCell):
         Returns:
             a pair of the output vector and the new state vector.
         """
-        
-        prev_state, prev_attention = state
+        prev_states, prev_attention = (state[:-1], state[-1])
         new_inputs = tf.concat(1, [inputs, prev_attention])
-        cell_output, new_state = self.cell(new_inputs, prev_state, scope)
-
+        cell_output, new_state = self.cell(new_inputs, prev_states, scope)
         output = tf.expand_dims(cell_output, 1)
         scores = tf.matmul(output, self.memory, transpose_b=True)
         scores = tf.squeeze(scores, [1])
@@ -67,7 +66,7 @@ class MyAttCell(tf.nn.rnn_cell.RNNCell):
         concat = tf.concat(1, [cell_output, context])
         attention_vec = tf.tanh(tf.matmul(concat, self.Wc))
 
-        next_state = (new_state, attention_vec)
+        next_state = tuple(list(new_state) + [attention_vec])
 
         return attention_vec, next_state
 
