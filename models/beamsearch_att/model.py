@@ -80,13 +80,24 @@ class ASRModel:
 		print 'Adding encoder'
 		# Use a GRU to encode the inputs
 		with tf.variable_scope('Encoder'):
-			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			forward_cells = []
+			for i in range(self.config.num_layers):
+				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+				forward_cells.append(cell)
+			cell_fw = tf.nn.rnn_cell.MultiRNNCell(cells=forward_cells)
+			backward_cells = []
+			for i in range(self.config.num_layers):
+				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+				backward_cells.append(cell)
+			cell_bw = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
 			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
 											sequence_length=self.input_seq_lens, dtype=tf.float32)
+			
+			states = (states[0][-1], states[1][-1])
 			self.encoded = tf.concat(1, states)
 			self.memory = tf.concat(2, outputs)
 			print 'Memory shape', self.memory.get_shape()
+			print 'Encoded shape is', self.encoded.get_shape()
 
 
 	def add_cell(self):
