@@ -27,6 +27,9 @@ def parse_arguments():
 	parser.add_argument('-c', '--count', default=None, help='How many examples do you want to evaluate')
 	parser.add_argument('-n', '--normalize', default=False, type=bool, help='Whether you want to normalize features')
 	parser.add_argument('-g', '--gpu', default=None, type=int, help='Whether you want to run on a specific GPU')
+	parser.add_argument('-nl', '--num_layers', default=2, type=int, help='How many layers the original model had')
+	parser.add_argument('-l', '--loop', default=None, help='Whether the greedy decoder uses a loop function')  
+	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
 	args = parser.parse_args()
 	return args
 
@@ -41,24 +44,27 @@ def load_model_and_data(args):
 	# Import the config and model from their respective files
 	global config
 	import config
-
+	config.num_layers = args.num_layers
+	config.loop = args.loop
 	if args.data == 'wsj':
 		config.max_in_len = 500
 		config.max_out_len = 200
 		config.vocab_size = 27
-	elif args.data = 'chime2_grid':
+	elif args.data == 'chime2_grid':
 		config.max_in_len = 100
 		config.max_out_len = 30
 		config.vocab_size = 27
-	elif args.data = 'tidigits':
+	elif args.data == 'tidigits':
 		config.max_in_len = 170
 		config.max_out_len = 7
 		config.vocab_size = 11
-
+	config.vocab_size += 3
+	if args.embedding_size is not None:
+		config.embedding_dim = args.embedding_size
 	print 'Current config:\n'
-    variables = zip(vars(config).keys(), vars(config).values())
-    for var, val in sorted(variables):
-        print var + ' = ' + str(val)
+    	variables = zip(vars(config).keys(), vars(config).values())
+    	for var, val in sorted(variables):
+        	print var + ' = ' + str(val)
 
 	print 'Creating graph...'
 	from model import ASRModel
