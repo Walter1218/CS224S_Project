@@ -30,6 +30,8 @@ def parse_arguments():
 	parser.add_argument('-nl', '--num_layers', default=2, type=int, help='How many layers the original model had')
 	parser.add_argument('-l', '--loop', default=None, help='Whether the greedy decoder uses a loop function')  
 	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
+	parser.add_argument('-bs', '--beam_search', default=None, help="Whether you would like to decode with beam search")
+	parser.add_argument('-nb', '--num_beams', default=12, help="Whether you would like to decode with beam search")
 	args = parser.parse_args()
 	return args
 
@@ -46,6 +48,8 @@ def load_model_and_data(args):
 	import config
 	config.num_layers = args.num_layers
 	config.loop = args.loop
+	config.beam_search = args.beam_search
+	config.num_beams = int(args.num_beams)
 	if args.data == 'wsj':
 		config.max_in_len = 500
 		config.max_out_len = 200
@@ -105,7 +109,10 @@ def get_preds(sess, data, num):
 		input_features, seq_lens, labels, masks = tuple([elem[min_i:max_i] for elem in test_data])
 		
 		# Test on this batch
-		scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
+		if config.beam_search:
+			scores, preds = model.test_beam_on_batch(sess, input_features, seq_lens, labels)
+		else:
+			scores, preds = model.test_on_batch(sess, input_features, seq_lens, labels)
 		
 		# Append the predictions and corresponding labels
 		all_preds += list(preds)
