@@ -43,7 +43,7 @@ class ASRModel:
 		print 'Adding placeholders'
 		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, self.config.num_input_features), name='inputs')
 		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.config.max_out_len + 2), name="target_seq")
-		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None), name='in_seq_lens')
+		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None,), name='in_seq_lens')
 		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, self.config.max_out_len + 2), name="mask")
 
 
@@ -121,6 +121,8 @@ class ASRModel:
 
 			W = tf.get_variable('W', shape=(self.config.decoder_hidden_size, self.config.vocab_size), \
 								initializer=tf.contrib.layers.xavier_initializer())
+			W_ini = tf.get_variable('W_ini', shape=(self.config.decoder_hidden_size, self.config.decoder_hidden_size), \
+								initializer=tf.contrib.layers.xavier_initializer())
 			b = tf.get_variable('b', shape=(self.config.vocab_size,), \
 								initializer=tf.constant_initializer(0.0))
 
@@ -134,8 +136,21 @@ class ASRModel:
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			init_state = list(self.encoded) + \
 						[tf.zeros_like(self.encoded[0])] + \
-						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 + \
-						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
+						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 
+
+						# + \
+						# [tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
+			
+			# Memory is currently 
+			summed_memory_vec = tf.reduce_sum(self.memory, axis=1)
+			numer = tf.sigmoid(tf.matmul(summed_memory_vec, W_ini))
+			print 'Numer is', numer
+			init_memory = numer/tf.expand_dims(tf.cast(self.input_seq_lens, tf.float32), 1)
+			init_memory = tf.expand_dims(init_memory, 1)
+			init_memory = tf.tile(init_memory, [1, self.config.num_cells, 1])
+			init_memory = init_memory + tf.random_normal(shape=tf.shape(init_memory), mean=0.0, stddev=np.sqrt(0.1))
+			print 'Init memory', init_memory
+			init_state += [init_memory]
 			# for i in range(self.config.num_dec_layers):
 			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
@@ -173,7 +188,7 @@ class ASRModel:
 			# Use the same output projection as in the decoder train case
 			W = tf.get_variable('W')
 			b = tf.get_variable('b')
-
+			W_ini = tf.get_variable('W_ini')
 			def output_fn(inputs):
 				original_shape = tf.shape(inputs)
 				outputs_flat = tf.reshape(inputs, [-1, self.config.decoder_hidden_size])
@@ -189,8 +204,21 @@ class ASRModel:
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
 			init_state = list(self.encoded) + \
 						[tf.zeros_like(self.encoded[0])] + \
-						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 + \
-						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
+						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 
+
+						# + \
+						# [tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
+			
+			# Memory is currently 
+			summed_memory_vec = tf.reduce_sum(self.memory, axis=1)
+			numer = tf.sigmoid(tf.matmul(summed_memory_vec, W_ini))
+			print 'Numer is', numer
+			init_memory = numer/tf.expand_dims(tf.cast(self.input_seq_lens, tf.float32), 1)
+			init_memory = tf.expand_dims(init_memory, 1)
+			init_memory = tf.tile(init_memory, [1, self.config.num_cells, 1])
+			init_memory = init_memory + tf.random_normal(shape=tf.shape(init_memory), mean=0.0, stddev=np.sqrt(0.1))
+			print 'Init memory', init_memory
+			init_state += [init_memory]
 			# for i in range(self.config.num_dec_layers):
 			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
