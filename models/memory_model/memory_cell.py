@@ -11,7 +11,7 @@ class MyMemCell(tf.nn.rnn_cell.RNNCell):
         # print 'My memory shape', memory.get_shape()
         self.cell = cell
         self.config = config
-        self.Wc = tf.get_variable('WcAtt', shape=(self.config.decoder_hidden_size + memory.get_shape().as_list()[-1],\
+        self.Wc = tf.get_variable('WcAtt', shape=(2*self.config.decoder_hidden_size + memory.get_shape().as_list()[-1],\
                                 self.config.decoder_hidden_size), \
                                 initializer=tf.contrib.layers.xavier_initializer())
         self.W_ers = tf.get_variable('WErs', shape=(self.config.decoder_hidden_size,\
@@ -138,7 +138,7 @@ class MyMemCell(tf.nn.rnn_cell.RNNCell):
         M_B, w_wt = self.write_memory(s_t, M_B_prev, w_w_prev)
 
         # The output will be tanh(W_c dot [s_t; r_t])
-        concat = tf.concat(1, [s_t, r_t])
+        concat = tf.concat(1, [s_t, r_t, cell_output])
         attention_vec = tf.tanh(tf.matmul(concat, self.Wc))
 
         next_state = tuple(list(new_state) + [attention_vec, w_rt, w_wt, M_B])
