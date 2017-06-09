@@ -143,7 +143,7 @@ class ASRModel:
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
-
+			tensor_preds = tf.nn.dropout(tensor_preds, keep_prob=self.config.dropout_p)
 			# Compute dot product
 			original_shape = tf.shape(tensor_preds)
 			outputs_flat = tf.reshape(tensor_preds, [-1, self.config.decoder_hidden_size])

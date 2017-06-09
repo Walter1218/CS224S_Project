@@ -83,6 +83,8 @@ class ASRModel:
 		with tf.variable_scope('Encoder'):
 
 			with tf.variable_scope('CellFw'):
+				self.notepad_fw = tf.get_variable('NotepadFw', shape=(self.config.num_cells, self.config.encoder_hidden_size), \
+								initializer=tf.contrib.layers.xavier_initializer())
 				forward_cells = []
 				for i in range(self.config.num_layers):
 					cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
@@ -91,6 +93,8 @@ class ASRModel:
 				cell_fw_final = MyMemEncCell(cell=cell_fw, config=self.config)
 
 			with tf.variable_scope('CellBw'):
+				self.notepad_bw = tf.get_variable('NotepadBw', shape=(self.config.num_cells, self.config.encoder_hidden_size), \
+								initializer=tf.contrib.layers.xavier_initializer())
 				backward_cells = []
 				for i in range(self.config.num_layers):
 					cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
@@ -99,11 +103,13 @@ class ASRModel:
 				cell_bw_final = MyMemEncCell(cell=cell_bw, config=self.config)
 
 			init_state_fw = list(cell_fw_final.zero_state(batch_size=tf.shape(self.input_placeholder)[0], dtype=tf.float32))
-			init_state_fw[-1] = tf.random_normal(shape=tf.shape(init_state_fw[-1]), mean=0.0, stddev=np.sqrt(0.1))
+			init_fw_memory = tf.tile(tf.expand_dims(self.notepad_fw, 0), [tf.shape(self.input_placeholder)[0], 1, 1])
+			init_state_fw[-1] = init_fw_memory
 			init_state_fw = tuple(init_state_fw)
 
 			init_state_bw = list(cell_bw_final.zero_state(batch_size=tf.shape(self.input_placeholder)[0], dtype=tf.float32))
-			init_state_bw[-1] = tf.random_normal(shape=tf.shape(init_state_bw[-1]), mean=0.0, stddev=np.sqrt(0.1))
+			init_bw_memory = tf.tile(tf.expand_dims(self.notepad_bw, 0), [tf.shape(self.input_placeholder)[0], 1, 1])
+			init_state_bw[-1] = init_bw_memory
 			init_state_bw = tuple(init_state_bw)
 			print 'Init state forward is', init_state_fw
 
@@ -294,22 +300,22 @@ class ASRModel:
 		params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
 		for param in params:
 			print param
-
 		global_step = tf.Variable(0, trainable=False)
 		self.lr = tf.train.exponential_decay(self.config.lr, global_step,
                                              5000, 0.70, staircase=True)
 		tf.summary.scalar("Learning Rate", self.lr)
-		optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.loss, global_step=global_step)
+		optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
 		gvs = optimizer.compute_gradients(self.loss)
-        gs, vs = zip(*gvs)
+		zipped = zip(*gvs)
+		gs, vs = zipped
         # Clip gradients only if self.self.config.clip_gradients is True.
         if self.config.clip_gradients:
-            gs, _ = tf.clip_by_global_norm(gs, self.config.max_grad_norm)
+            gs, _ = tf.clip_by_global_norm(gs, self.config.clip_val)
             gvs = zip(gs, vs)
         # Remember to set self.grad_norm
         self.grad_norm = tf.global_norm(gs)
         tf.summary.scalar("Gradient Norm", self.grad_norm)
-        self.optimizer = optimizer.apply_gradients(gvs)
+        self.optimizer = optimizer.apply_gradients(gvs, global_step=global_step)
     
     # Merges all summaries
 	def add_summary_op(self):

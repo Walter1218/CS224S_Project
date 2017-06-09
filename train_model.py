@@ -38,6 +38,8 @@ def parse_arguments():
 	parser.add_argument('-nl', '--num_layers', default=1, type=int, help="How many layers to use for encoder and decoder")
 	parser.add_argument('-nc', '--num_cells', default=64, type=int, help="How many cells to use for the memory-based models.")
 	parser.add_argument('-bt', '--beam_threshold', default=0.0, type=float, help="What threshold to use during beamsearch")
+	parser.add_argument('-dp', '--dropout_p', default=None, type=float, help="What keep probability to use for dropout")
+	parser.add_argument('-cg', '--clip_gradients', default=None, help="Whether to clip gradients by global norm")	
 	args = parser.parse_args()
 	return args
 
@@ -62,6 +64,8 @@ def load_model_and_data(args):
 	config.num_layers = args.num_layers
 	config.num_cells = args.num_cells
 	config.beam_threshold = float(args.beam_threshold)
+	if args.clip_gradients is not None:
+		config.clip_gradients = bool(args.clip_gradients)
 	# config.num_dec_layers = args.num_dec_layers
 	if args.data == 'wsj':
 		config.max_in_len = 500
@@ -82,7 +86,8 @@ def load_model_and_data(args):
 
 	if args.embedding_size:
 		config.embedding_dim = int(args.embedding_size)
-
+	if args.dropout_p:
+		config.dropout_p = float(args.dropout_p)
 	print 'Current config:\n'
 	variables = zip(vars(config).keys(), vars(config).values())
 	for var, val in sorted(variables):
