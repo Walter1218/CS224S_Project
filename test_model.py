@@ -32,6 +32,7 @@ def parse_arguments():
 	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
 	parser.add_argument('-bs', '--beam_search', default=None, help="Whether you would like to decode with beam search")
 	parser.add_argument('-nb', '--num_beams', default=12, help="Whether you would like to decode with beam search")
+	parser.add_argument('-bt', '--beam_threshold', default=0.0, type=float, help="What threshold to use during beamsearch")
 	args = parser.parse_args()
 	return args
 
@@ -50,6 +51,7 @@ def load_model_and_data(args):
 	config.loop = args.loop
 	config.beam_search = args.beam_search
 	config.num_beams = int(args.num_beams)
+	config.beam_threshold = float(args.beam_threshold)
 	if args.data == 'wsj':
 		config.max_in_len = 500
 		config.max_out_len = 200

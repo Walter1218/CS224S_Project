@@ -36,6 +36,8 @@ def parse_arguments():
 	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
 	parser.add_argument('-l', '--loop', default=None, help="How large the embedding dimension should be")
 	parser.add_argument('-nl', '--num_layers', default=1, type=int, help="How many layers to use for encoder and decoder")
+	parser.add_argument('-nc', '--num_cells', default=64, type=int, help="How many cells to use for the memory-based models.")
+	parser.add_argument('-bt', '--beam_threshold', default=0.0, type=float, help="What threshold to use during beamsearch")
 	args = parser.parse_args()
 	return args
 
@@ -58,6 +60,8 @@ def load_model_and_data(args):
 	import config
 	config.loop = args.loop
 	config.num_layers = args.num_layers
+	config.num_cells = args.num_cells
+	config.beam_threshold = float(args.beam_threshold)
 	# config.num_dec_layers = args.num_dec_layers
 	if args.data == 'wsj':
 		config.max_in_len = 500

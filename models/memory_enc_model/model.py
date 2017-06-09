@@ -5,6 +5,7 @@ import tensorflow as tf
 from tf_beam_decoder import beam_decoder
 import numpy as np
 from memory_cell import MyMemCell
+from memory_enc_cell import MyMemEncCell
 
 class ASRModel:
 
@@ -80,21 +81,42 @@ class ASRModel:
 		print 'Adding encoder'
 		# Use a GRU to encode the inputs
 		with tf.variable_scope('Encoder'):
-			forward_cells = []
-			for i in range(self.config.num_layers):
-				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-				forward_cells.append(cell)
-			cell_fw = tf.nn.rnn_cell.MultiRNNCell(cells=forward_cells)
-			backward_cells = []
-			for i in range(self.config.num_layers):
-				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-				backward_cells.append(cell)
-			cell_bw = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
-			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
-											sequence_length=self.input_seq_lens, dtype=tf.float32)
+
+			with tf.variable_scope('CellFw'):
+				forward_cells = []
+				for i in range(self.config.num_layers):
+					cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+					forward_cells.append(cell)
+				cell_fw = tf.nn.rnn_cell.MultiRNNCell(cells=forward_cells)
+				cell_fw_final = MyMemEncCell(cell=cell_fw, config=self.config)
+
+			with tf.variable_scope('CellBw'):
+				backward_cells = []
+				for i in range(self.config.num_layers):
+					cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+					backward_cells.append(cell)
+				cell_bw = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
+				cell_bw_final = MyMemEncCell(cell=cell_bw, config=self.config)
+
+			init_state_fw = list(cell_fw_final.zero_state(batch_size=tf.shape(self.input_placeholder)[0], dtype=tf.float32))
+			init_state_fw[-1] = tf.random_normal(shape=tf.shape(init_state_fw[-1]), mean=0.0, stddev=np.sqrt(0.1))
+			init_state_fw = tuple(init_state_fw)
+
+			init_state_bw = list(cell_bw_final.zero_state(batch_size=tf.shape(self.input_placeholder)[0], dtype=tf.float32))
+			init_state_bw[-1] = tf.random_normal(shape=tf.shape(init_state_bw[-1]), mean=0.0, stddev=np.sqrt(0.1))
+			init_state_bw = tuple(init_state_bw)
+			print 'Init state forward is', init_state_fw
+
+			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw_final, cell_bw = cell_bw_final, inputs=self.input_placeholder, \
+											sequence_length=self.input_seq_lens, \
+											initial_state_fw = init_state_fw, \
+											initial_state_bw = init_state_bw, \
+											dtype=tf.float32)
 			all_states = []
 			for i in range(self.config.num_layers):
 				all_states.append(tf.concat(1, (states[0][i], states[1][i])))
+
+			self.init_memory = tf.concat(2, (states[0][-1], states[1][-1]))
 			print 'All states', all_states
 			self.encoded = tuple(all_states)
 			# states = (states[0][-1], states[1][-1])
@@ -136,21 +158,9 @@ class ASRModel:
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
 			init_state = list(self.encoded) + \
 						[tf.zeros_like(self.encoded[0])] + \
-						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 
-
-						# + \
-						# [tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
+						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2
 			
-			# Memory is currently 
-			summed_memory_vec = tf.reduce_sum(self.memory, axis=1)
-			numer = tf.sigmoid(tf.matmul(summed_memory_vec, W_ini))
-			print 'Numer is', numer
-			init_memory = numer/tf.expand_dims(tf.cast(self.input_seq_lens, tf.float32), 1)
-			init_memory = tf.expand_dims(init_memory, 1)
-			init_memory = tf.tile(init_memory, [1, self.config.num_cells, 1])
-			init_memory = init_memory + tf.random_normal(shape=tf.shape(init_memory), mean=0.0, stddev=np.sqrt(0.1))
-			print 'Init memory', init_memory
-			init_state += [init_memory]
+			init_state += [self.init_memory]
 			# for i in range(self.config.num_dec_layers):
 			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
@@ -205,20 +215,7 @@ class ASRModel:
 			init_state = list(self.encoded) + \
 						[tf.zeros_like(self.encoded[0])] + \
 						[tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells), dtype=tf.float32)]*2 
-
-						# + \
-						# [tf.zeros(shape=(tf.shape(self.encoded[0])[0], self.config.num_cells, self.config.decoder_hidden_size), dtype=tf.float32)]
-			
-			# Memory is currently 
-			summed_memory_vec = tf.reduce_sum(self.memory, axis=1)
-			numer = tf.sigmoid(tf.matmul(summed_memory_vec, W_ini))
-			print 'Numer is', numer
-			init_memory = numer/tf.expand_dims(tf.cast(self.input_seq_lens, tf.float32), 1)
-			init_memory = tf.expand_dims(init_memory, 1)
-			init_memory = tf.tile(init_memory, [1, self.config.num_cells, 1])
-			init_memory = init_memory + tf.random_normal(shape=tf.shape(init_memory), mean=0.0, stddev=np.sqrt(0.1))
-			print 'Init memory', init_memory
-			init_state += [init_memory]
+			init_state += [self.init_memory]
 			# for i in range(self.config.num_dec_layers):
 			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
@@ -234,7 +231,7 @@ class ASRModel:
 			    outputs_to_score_fn=output_fn,
 			    output_dense=True,
 			    cell_transform='replicate',
-			    score_upper_bound = 0.0
+			    score_upper_bound = self.config.beam_threshold
 			)
 
 

@@ -1,45 +1,38 @@
 import tensorflow as tf
 import numpy as np
 
-class MyMemCell(tf.nn.rnn_cell.RNNCell):
+class MyMemEncCell(tf.nn.rnn_cell.RNNCell):
     """Wrapper around our GRU cell implementation that allows us to play
     nicely with TensorFlow.
     """
-    def __init__(self, num_units, memory, cell, config):
+    def __init__(self, cell, config):
         # super(MyAttCell, self).__init__(num_units=num_units)
-        self.memory = memory
         # print 'My memory shape', memory.get_shape()
         self.cell = cell
         self.config = config
-        self.Wc = tf.get_variable('WcAtt', shape=(2*self.config.decoder_hidden_size + memory.get_shape().as_list()[-1],\
-                                self.config.decoder_hidden_size), \
+        self.W_ers = tf.get_variable('WErs', shape=(self.config.encoder_hidden_size,\
+                                self.config.encoder_hidden_size), \
                                 initializer=tf.contrib.layers.xavier_initializer())
-        self.W_ers = tf.get_variable('WErs', shape=(self.config.decoder_hidden_size,\
-                                self.config.decoder_hidden_size), \
-                                initializer=tf.contrib.layers.xavier_initializer())
-        self.W_add = tf.get_variable('WAdd', shape=(self.config.decoder_hidden_size,\
-                                self.config.decoder_hidden_size), \
+        self.W_add = tf.get_variable('WAdd', shape=(self.config.encoder_hidden_size,\
+                                self.config.encoder_hidden_size), \
                                 initializer=tf.contrib.layers.xavier_initializer())
 
-        self.w_rg = tf.get_variable('w_rg', shape=(self.config.decoder_hidden_size, 1), \
-                                initializer=tf.contrib.layers.xavier_initializer())
-
-        self.w_wg = tf.get_variable('w_wg', shape=(self.config.decoder_hidden_size, 1), \
+        self.w_wg = tf.get_variable('w_wg', shape=(self.config.encoder_hidden_size, 1), \
                                 initializer=tf.contrib.layers.xavier_initializer())
 
 
     @property
     def state_size(self):
 
-        # Prev output attention vector, w_r, w_w
-        sizes = [self.config.decoder_hidden_size, self.config.num_cells, self.config.num_cells]
+        # w_w
+        sizes = [self.config.num_cells]
 
         # Memory bank dimension
-        sizes += [tf.TensorShape([tf.Dimension(self.config.num_cells), tf.Dimension(self.config.decoder_hidden_size)])]
+        sizes += [tf.TensorShape([tf.Dimension(self.config.num_cells), tf.Dimension(self.config.encoder_hidden_size)])]
 
         # The previous hidden vector for each layer
         for i in range(self.config.num_layers):
-            sizes = [self.config.decoder_hidden_size] + sizes
+            sizes = [self.config.encoder_hidden_size] + sizes
 
         print 'Sizes is', sizes
         # Convert into tuple
@@ -47,7 +40,7 @@ class MyMemCell(tf.nn.rnn_cell.RNNCell):
 
     @property
     def output_size(self):
-        return self.config.decoder_hidden_size
+        return self.config.encoder_hidden_size
 
 
     # Reads from the external memory bank
@@ -109,40 +102,20 @@ class MyMemCell(tf.nn.rnn_cell.RNNCell):
 
         return M_new, w_wt      
 
-    # State should contain previous GRU state, prev final attention vector, w_r, w_w, external memory
+    # State should contain previous GRU state, w_w, external memory
     def __call__(self, inputs, state, scope=None):
 
         # Extract information from previous state
-        prev_states, prev_attention, w_r_prev, w_w_prev, M_B_prev = (state[:self.config.num_layers], state[-4], state[-3], state[-2], state[-1])
-        
-        # Read from the memory bank first using the prev output
-        r_t, w_rt = self.read_memory(prev_attention, M_B_prev, w_r_prev)
-
-        # Use the memory vector and concatenate with input
-        new_inputs = tf.concat(1, [inputs, r_t])
+        prev_states, w_w_prev, M_B_prev = (state[:self.config.num_layers], state[-2], state[-1])
 
         # Get the new GRU state
-        cell_output, new_state = self.cell(new_inputs, prev_states, scope)
+        cell_output, new_state = self.cell(inputs, prev_states, scope)
 
-        # Using the vector output from the cell, perform attention
-        output = tf.expand_dims(cell_output, 1)
-        scores = tf.matmul(output, self.memory, transpose_b=True)
-        scores = tf.squeeze(scores, [1])
-        probs = tf.nn.softmax(logits = scores)
+        # Once we have the final attention vector, use this to 
+        # start writing to the memory bank
+        M_B, w_wt = self.write_memory(cell_output, M_B_prev, w_w_prev)
 
-        probs = tf.expand_dims(probs, 1)
-        context = tf.matmul(probs, self.memory)
-        s_t = tf.squeeze(context, [1])
+        next_state = tuple(list(new_state) + [w_wt, M_B])
 
-        # The output will be tanh(W_c dot [s_t; r_t])
-        concat = tf.concat(1, [s_t, r_t, cell_output])
-        attention_vec = tf.tanh(tf.matmul(concat, self.Wc))
-
-        # Write the output vector to memory
-        M_B, w_wt = self.write_memory(attention_vec, M_B_prev, w_w_prev)
-
-        # Form the next state
-        next_state = tuple(list(new_state) + [attention_vec, w_rt, w_wt, M_B])
-
-        return attention_vec, next_state
+        return cell_output, next_state
 

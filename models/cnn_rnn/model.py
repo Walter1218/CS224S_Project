@@ -210,7 +210,7 @@ class ASRModel:
 			    outputs_to_score_fn=output_fn,
 			    output_dense=True,
 			    cell_transform='replicate',
-			    score_upper_bound = 0.0
+			    score_upper_bound = self.config.beam_threshold
 			)
 
 
