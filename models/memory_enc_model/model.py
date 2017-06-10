@@ -299,17 +299,7 @@ class ASRModel:
 		self.lr = tf.train.exponential_decay(self.config.lr, global_step,
                                              5000, 0.70, staircase=True)
 		tf.summary.scalar("Learning Rate", self.lr)
-		optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.loss, global_step=global_step)
-		gvs = optimizer.compute_gradients(self.loss)
-        gs, vs = zip(*gvs)
-        # Clip gradients only if self.self.config.clip_gradients is True.
-        if self.config.clip_gradients:
-            gs, _ = tf.clip_by_global_norm(gs, self.config.max_grad_norm)
-            gvs = zip(gs, vs)
-        # Remember to set self.grad_norm
-        self.grad_norm = tf.global_norm(gs)
-        tf.summary.scalar("Gradient Norm", self.grad_norm)
-        self.optimizer = optimizer.apply_gradients(gvs)
+		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.loss, global_step=global_step)
     
     # Merges all summaries
 	def add_summary_op(self):
