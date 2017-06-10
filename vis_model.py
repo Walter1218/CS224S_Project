@@ -96,10 +96,11 @@ def load_model_and_data(args):
 '''
 Helper function that returns list of predictions
 '''
-def get_mems(sess, data, num):
+def get_mems(sess, data, num, DL):
 	test_data = [elem[:num] for elem in data]
 	i = 0
 	all_mems = []
+	all_labels = []
 	while i < num:
 		print 'i = ', i
 
@@ -111,12 +112,13 @@ def get_mems(sess, data, num):
 		init_memory = model.get_memory(sess, input_features, seq_lens, labels)
 		avg_mems = np.mean(init_memory, axis=1)
 		all_mems += list(avg_mems)
-
+		for label in labels:
+			all_labels.append(DL.decode(label))
 		# Shift i
 		i += config.batch_size
 
 	# Return result
-	return np.array(all_mems)
+	return np.array(all_mems), all_labels
 
 
 def visualize(args):
@@ -151,14 +153,21 @@ def visualize(args):
 		# Use the count passed in if there is one
 		if args.count is not None:
 			num_to_evaluate = args.count
-		print 'Evaluating ' + str(num_to_evaluate) + ' examples' 
+		print 'Visualizing ' + str(num_to_evaluate) + ' examples' 
 
 		# Get the predictions and labels in a batch fashion
-		all_average_memories = get_mems(sess, test_data, int(num_to_evaluate))
+		all_average_memories = get_mems(sess, test_data, int(num_to_evaluate), DL)
 		tsne_model = TSNE(n_components=2, random_state=0)
+		print 'Fitting data'
 		fit_data = tsne_model.fit_transform(all_average_memories)
 		data_x = fit_data[:, 0]
 		data_y = fit_data[:, 1]
+		plt.figure()
+        for x,y,char in zip(data_x, data_y,labels):
+            plt.scatter(x,y, 'r')
+            plt.annotate(char[0], xy=(x,y))
+        plt.show()
+
 		
 
 
