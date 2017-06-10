@@ -110,6 +110,9 @@ def get_mems(sess, data, num, DL):
 		min_i = i
 		max_i = i + config.batch_size
 
+		# Get the batch data
+		input_features, seq_lens, labels, masks = tuple([elem[min_i:max_i] for elem in test_data])
+		
 		# Batch size, num cells, memory len
 		init_memory = model.get_memory(sess, input_features, seq_lens, labels)
 		avg_mems = np.mean(init_memory, axis=1)
