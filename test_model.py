@@ -53,7 +53,7 @@ def load_model_and_data(args):
 	config.beam_search = args.beam_search
 	config.num_beams = int(args.num_beams)
 	config.beam_threshold = float(args.beam_threshold)
-	config.num_cells = float(args.num_cells)
+	config.num_cells = int(args.num_cells)
 	if args.data == 'wsj':
 		config.max_in_len = 500
 		config.max_out_len = 200
