@@ -13,7 +13,7 @@ import argparse
 from data_loader import DataLoader
 import editdistance
 from sklearn.manifold import TSNE
-
+import matplotlib.pyplot as plt
 model = None
 DL = None
 results_dir = None
@@ -161,7 +161,7 @@ def visualize(args):
 		print 'Visualizing ' + str(num_to_evaluate) + ' examples' 
 
 		# Get the predictions and labels in a batch fashion
-		all_average_memories = get_mems(sess, test_data, int(num_to_evaluate), DL)
+		all_average_memories, labels = get_mems(sess, test_data, int(num_to_evaluate), DL)
 		tsne_model = TSNE(n_components=2, random_state=0)
 		print 'Fitting data'
 		fit_data = tsne_model.fit_transform(all_average_memories)
