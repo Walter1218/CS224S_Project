@@ -13,6 +13,8 @@ import argparse
 from data_loader import DataLoader
 import editdistance
 from sklearn.manifold import TSNE
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 model = None
 DL = None
@@ -115,7 +117,8 @@ def get_mems(sess, data, num, DL):
 		
 		# Batch size, num cells, memory len
 		init_memory = model.get_memory(sess, input_features, seq_lens, labels)
-		avg_mems = np.mean(init_memory, axis=1)
+		#avg_mems = np.mean(init_memory, axis=1)
+		avg_mems = init_memory[:, 0, :]
 		all_mems += list(avg_mems)
 		for label in labels:
 			all_labels.append(DL.decode(label))
@@ -162,6 +165,7 @@ def visualize(args):
 
 		# Get the predictions and labels in a batch fashion
 		all_average_memories, labels = get_mems(sess, test_data, int(num_to_evaluate), DL)
+		print all_average_memories
 		tsne_model = TSNE(n_components=2, random_state=0)
 		print 'Fitting data'
 		fit_data = tsne_model.fit_transform(all_average_memories)
@@ -169,9 +173,11 @@ def visualize(args):
 		data_y = fit_data[:, 1]
 		plt.figure()
         for x,y,char in zip(data_x, data_y,labels):
-            plt.scatter(x,y, 'r')
-            plt.annotate(char[0], xy=(x,y))
-        plt.show()
+            plt.scatter(x,y, c='r')
+            plt.annotate(char[3], xy=(x,y))
+        plt.savefig('Plot')
+	plt.close()
+
 
 		
 
