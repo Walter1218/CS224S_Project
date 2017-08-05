@@ -34,12 +34,14 @@ def parse_arguments():
 	parser.add_argument('-n', '--normalize', default=False, type=bool, help="Whether you want to normalize MFCC features")
 	parser.add_argument('-b', '--batch_size', default=None, type=int, help="How many examples per batch")
 	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
-	parser.add_argument('-l', '--loop', default=None, help="How large the embedding dimension should be")
+	parser.add_argument('-l', '--loop', default=None, help="Whether to feed in the previous output during training.")
 	parser.add_argument('-nl', '--num_layers', default=1, type=int, help="How many layers to use for encoder and decoder")
 	parser.add_argument('-nc', '--num_cells', default=64, type=int, help="How many cells to use for the memory-based models.")
 	parser.add_argument('-bt', '--beam_threshold', default=0.0, type=float, help="What threshold to use during beamsearch")
 	parser.add_argument('-dp', '--dropout_p', default=None, type=float, help="What keep probability to use for dropout")
-	parser.add_argument('-cg', '--clip_gradients', default=None, help="Whether to clip gradients by global norm")	
+	parser.add_argument('-cg', '--clip_gradients', default=None, help="Whether to clip gradients by global norm")
+	parser.add_argument('-ehs', '--ehs', default=None, type=int, help="How large the encoder hidden size should be")
+	parser.add_argument('-dhs', '--dhs', default=None, type=int, help="How large the decoder hidden size should be")			
 	args = parser.parse_args()
 	return args
 
@@ -88,6 +90,10 @@ def load_model_and_data(args):
 		config.embedding_dim = int(args.embedding_size)
 	if args.dropout_p:
 		config.dropout_p = float(args.dropout_p)
+	if args.ehs:
+		config.encoder_hidden_size = int(args.ehs)
+	if args.dhs:
+		config.decoder_hidden_size = int(args.dhs)
 	print 'Current config:\n'
 	variables = zip(vars(config).keys(), vars(config).values())
 	for var, val in sorted(variables):
