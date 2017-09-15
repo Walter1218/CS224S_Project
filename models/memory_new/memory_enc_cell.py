@@ -126,9 +126,9 @@ class MyMemEncCell(tf.nn.rnn_cell.RNNCell):
     """Wrapper around our GRU cell implementation that allows us to play
     nicely with TensorFlow.
     """
-    def __init__(self, num_units, memory, cell, config):
+    def __init__(self, cell, config):
         # super(MyAttCell, self).__init__(num_units=num_units)
-        self.memory = memory
+        # self.memory = memory
         # print 'My memory shape', memory.get_shape()
         self.cell = cell
         self.config = config
