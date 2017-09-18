@@ -3,11 +3,11 @@ Model definition for baseline seq-to-seq model.
 '''
 import tensorflow as tf
 import numpy as np
-import config
 
 class ASRModel:
 
-	def __init__(self):
+	def __init__(self, config):
+		self.config = config
 		self.build_graph()
 
 	def build_graph(self):
@@ -34,11 +34,11 @@ class ASRModel:
 
 	def add_placeholders(self):
 		print 'Adding placeholders'
-		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, config.num_input_features), name='inputs')
-		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, config.max_out_len + 2), name="target_seq")
+		self.input_placeholder = tf.placeholder(tf.float32, shape=(None, None, self.config.num_input_features), name='inputs')
+		self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.config.max_out_len + 2), name="target_seq")
 		self.input_seq_lens = tf.placeholder(tf.int32, shape=(None), name='in_seq_lens')
 		# self.dropout_placeholder = tf.placeholder(tf.float32, name='dropout_keep')
-		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, config.max_out_len + 2), name="mask")
+		self.mask_placeholder = tf.placeholder(tf.float32, shape=(None, self.config.max_out_len + 2), name="mask")
 
 	def create_feed_dict(self, inputs, seq_lens=None, labels=None, mask=None, dropout=None):
 		'''
@@ -70,8 +70,8 @@ class ASRModel:
 		print 'Adding encoder'
 		# Use a GRU to encode the inputs
 		with tf.variable_scope('Encoder'):
-			cell_fw = tf.contrib.rnn.GRUCell(num_units = config.encoder_hidden_size)
-			cell_bw = tf.contrib.rnn.GRUCell(num_units = config.encoder_hidden_size)
+			cell_fw = tf.contrib.rnn.GRUCell(num_units = self.config.encoder_hidden_size)
+			cell_bw = tf.contrib.rnn.GRUCell(num_units = self.config.encoder_hidden_size)
 			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
 											sequence_length=self.input_seq_lens, dtype=tf.float32)
 			self.encoded = tf.concat(states, 1)
@@ -81,32 +81,33 @@ class ASRModel:
 	def add_decoder(self):
 		print 'Adding decoder'
 		with tf.variable_scope('Decoder'):
-			cell = tf.contrib.rnn.GRUCell(num_units = config.decoder_hidden_size)
+			cell = tf.contrib.rnn.GRUCell(num_units = self.config.decoder_hidden_size)
 
 			# Get variable
-			W = tf.get_variable('W', shape=(config.decoder_hidden_size, config.vocab_size), \
+			W = tf.get_variable('W', shape=(self.config.decoder_hidden_size, self.config.vocab_size), \
 								initializer=tf.contrib.layers.xavier_initializer())
-			b = tf.get_variable('b', shape=(config.vocab_size,), \
+			b = tf.get_variable('b', shape=(self.config.vocab_size,), \
 								initializer=tf.constant_initializer(0.0))
+			loop = self.config.loop
 			# Convert decoder inputs to a list
 			decoder_inputs = tf.unstack(self.labels_placeholder, axis=1)[:-1]
 			outputs, _ = tf.contrib.legacy_seq2seq.embedding_attention_decoder(decoder_inputs = decoder_inputs, \
 												attention_states = self.attended,
 												initial_state = self.encoded, cell = cell,\
-												num_symbols = config.vocab_size,\
-												embedding_size=config.embedding_dim, \
+												num_symbols = self.config.vocab_size,\
+												embedding_size=self.config.embedding_dim, \
 												output_projection=(W, b), \
-												feed_previous=False)
+												feed_previous=loop)
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
 			# Compute dot product
 			original_shape = tf.shape(tensor_preds)
-			outputs_flat = tf.reshape(tensor_preds, [-1, config.decoder_hidden_size])
+			outputs_flat = tf.reshape(tensor_preds, [-1, self.config.decoder_hidden_size])
 			logits_flat = tf.matmul(outputs_flat, W) + b
 
 			# Reshape back into 3D
-			self.logits = tf.reshape(logits_flat, [original_shape[0], original_shape[1], config.vocab_size])
+			self.logits = tf.reshape(logits_flat, [original_shape[0], original_shape[1], self.config.vocab_size])
 
 
 	'''
@@ -118,7 +119,7 @@ class ASRModel:
 		with tf.variable_scope('Decoder', reuse=True):
 
 			# Use the same cell and output projection as in the decoder train case
-			cell = tf.contrib.rnn.GRUCell(num_units = config.decoder_hidden_size)
+			cell = tf.contrib.rnn.GRUCell(num_units = self.config.decoder_hidden_size)
 			W = tf.get_variable('W')
 			b = tf.get_variable('b')
 			# a = self.encoded
@@ -131,21 +132,21 @@ class ASRModel:
 			outputs, _ = tf.contrib.legacy_seq2seq.embedding_attention_decoder(decoder_inputs = decoder_inputs, \
 												attention_states = self.attended,
 												initial_state = self.encoded, cell = cell,\
-												num_symbols = config.vocab_size,\
-												embedding_size=config.embedding_dim, \
+												num_symbols = self.config.vocab_size,\
+												embedding_size=self.config.embedding_dim, \
 												output_projection=(W, b), \
-												feed_previous=False)
+												feed_previous=True)
 
 			# Convert back to tensor
 			tensor_preds = tf.stack(outputs, axis=1)
 
 			# Compute output_projection
 			original_shape = tf.shape(tensor_preds)
-			outputs_flat = tf.reshape(tensor_preds, [-1, config.decoder_hidden_size])
+			outputs_flat = tf.reshape(tensor_preds, [-1, self.config.decoder_hidden_size])
 			logits_flat = tf.matmul(outputs_flat, W) + b
 
 			# Reshape back to original
-			self.test_scores = tf.reshape(logits_flat, [original_shape[0], original_shape[1], config.vocab_size])
+			self.test_scores = tf.reshape(logits_flat, [original_shape[0], original_shape[1], self.config.vocab_size])
 			self.test_preds = tf.argmax(self.test_scores, axis=2)
 
 	'''
@@ -180,14 +181,14 @@ class ASRModel:
 	def add_training_op(self):
 		print 'Adding training op'
 		# params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-		self.optimizer = tf.train.AdamOptimizer(learning_rate=config.lr).minimize(self.loss)
-		# optimizer = tf.train.AdamOptimizer(learning_rate=config.lr)
+		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(self.loss)
+		# optimizer = tf.train.AdamOptimizer(learning_rate=self.config.lr)
 		# gvs = optimizer.compute_gradients(self.loss)
 		# print gvas
   #       # gs, vs = zip(*gvs)
-  #       # # Clip gradients only if self.config.clip_gradients is True.
-  #       # if config.clip_gradients:
-  #       #     gs, _ = tf.clip_by_global_norm(gs, config.max_grad_norm)
+  #       # # Clip gradients only if self.self.config.clip_gradients is True.
+  #       # if self.config.clip_gradients:
+  #       #     gs, _ = tf.clip_by_global_norm(gs, self.config.max_grad_norm)
   #       #     gvs = zip(gs, vs)
   #       # # Remember to set self.grad_norm
   #       # self.grad_norm = tf.global_norm(gs)

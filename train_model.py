@@ -17,7 +17,6 @@ from data_loader import DataLoader
 model = None
 DL_train = None
 DL_val = None
-
 '''
 Function: parse_arguments()
 ---------------------------
@@ -26,12 +25,23 @@ Parses the command line arguments and stores/returns them in args
 def parse_arguments():
 	parser = argparse.ArgumentParser(description='Trains an end-to-end neural ASR model')
 	parser.add_argument('-m', '--model', default='baseline', help="Model you would like to train")
-	parser.add_argument('-s', '--save', default=True, type=bool, help="Whether you would like to save the model, default is true.")
-	parser.add_argument('-n', '--resdir', default=None, help="Name of directory you would like to save results in")
+	parser.add_argument('-s', '--save', default=False, type=bool, help="Whether you would like to save the model, default is False.")
+	parser.add_argument('-e', '--experiment', default=None, help="Name of directory you would like to save results in, default is current date")
 	parser.add_argument('-rf', '--restorefile', default=None, help="What filename you would like to load the model from, default is None.")
 	parser.add_argument('-r', '--restore', default=False, help="Whether you would like to restore a saved model, default is False")
 	parser.add_argument('-d', '--data', default='wsj', help="What dataset you would like to use")
 	parser.add_argument('-g', '--gpu', default=None, help="GPU number you would like to use")
+	parser.add_argument('-n', '--normalize', default=False, type=bool, help="Whether you want to normalize MFCC features")
+	parser.add_argument('-b', '--batch_size', default=None, type=int, help="How many examples per batch")
+	parser.add_argument('-emb', '--embedding_size', default=None, type=int, help="How large the embedding dimension should be")
+	parser.add_argument('-l', '--loop', default=None, help="Whether to feed in the previous output during training.")
+	parser.add_argument('-nl', '--num_layers', default=1, type=int, help="How many layers to use for encoder and decoder")
+	parser.add_argument('-nc', '--num_cells', default=64, type=int, help="How many cells to use for the memory-based models.")
+	parser.add_argument('-bt', '--beam_threshold', default=0.0, type=float, help="What threshold to use during beamsearch")
+	parser.add_argument('-dp', '--dropout_p', default=None, type=float, help="What keep probability to use for dropout")
+	parser.add_argument('-cg', '--clip_gradients', default=None, help="Whether to clip gradients by global norm")
+	parser.add_argument('-ehs', '--ehs', default=None, type=int, help="How large the encoder hidden size should be")
+	parser.add_argument('-dhs', '--dhs', default=None, type=int, help="How large the decoder hidden size should be")			
 	args = parser.parse_args()
 	return args
 
@@ -52,36 +62,82 @@ def load_model_and_data(args):
 	# Import the config and model from their respective files
 	global config
 	import config
-	with open(full_path + '/config.py') as f:
-		print f.read()
+	config.loop = args.loop
+	config.num_layers = args.num_layers
+	config.num_cells = args.num_cells
+	config.beam_threshold = float(args.beam_threshold)
+	if args.clip_gradients is not None:
+		config.clip_gradients = bool(args.clip_gradients)
+	# config.num_dec_layers = args.num_dec_layers
+	if args.data == 'wsj':
+		config.max_in_len = 500
+		config.max_out_len = 200
+		config.vocab_size = 27
+	elif args.data == 'chime2_grid':
+		config.max_in_len = 100
+		config.max_out_len = 30
+		config.vocab_size = 27
+	elif args.data == 'tidigits':
+		config.max_in_len = 170
+		config.max_out_len = 7
+		config.vocab_size = 11
+	elif args.data == 'wsj_new':
+		config.max_in_len = 1000
+		config.max_out_len = 200
+		config.vocab_size = 27
+		config.num_input_features = 40
+
+	config.vocab_size = config.vocab_size + 3 #Special token for start, end, and pad
+	if args.batch_size:
+		config.batch_size = int(args.batch_size)
+
+	if args.embedding_size:
+		config.embedding_dim = int(args.embedding_size)
+	if args.dropout_p:
+		config.dropout_p = float(args.dropout_p)
+	if args.ehs:
+		config.encoder_hidden_size = int(args.ehs)
+	if args.dhs:
+		config.decoder_hidden_size = int(args.dhs)
+	print 'Current config:\n'
+	variables = zip(vars(config).keys(), vars(config).values())
+	for var, val in sorted(variables):
+		print var + ' = ' + str(val)
 
 
 	print 'Creating graph...'
 	from model import ASRModel
 	global model
-	model = ASRModel()
+	model = ASRModel(config)
 
 	# Training data loader
 	print 'Loading training data...'
 	global DL_train
-	DL_train = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split='train')
+	DL_train = DataLoader(args.data, config=config, \
+				normalize=args.normalize, split='train')
 
 	# Validation data loader
 	print 'Loading validation data'
 	global DL_val
-	DL_val = DataLoader(args.data, config.max_in_len, config.max_out_len, normalize=False, split='dev')
+	DL_val = DataLoader(args.data, config=config, \
+				normalize=args.normalize, mean_vector = DL_train.mean_vector, split='dev')
 
 
 def create_results_dir(args):
-	if not args.save: 
-		return
 	parent_dir = 'results/' + args.model + '/'
 	global results_dir
-	if args.resdir:
-		results_dir = parent_dir + args.resdir
+	if args.experiment:
+		results_dir = parent_dir + args.experiment
 	else:
 		results_dir = parent_dir + strftime("%Y_%m_%d_%H_%M_%S", gmtime())
 
+
+def print_examples(labels, preds, DL):
+	for i in range(5):
+		print 'Expected'
+		print DL.decode(list(labels[i])[1:])
+		print 'Got'
+		print DL.decode(list(preds[i])) + '\n'
 
 def train(args):
 
@@ -97,8 +153,9 @@ def train(args):
 		# Writes summaries out to the given path
 		writer = tf.summary.FileWriter(results_dir, sess.graph)
 
-		# Saves the model to a file, or restores it
-		saver = tf.train.Saver(tf.trainable_variables())
+		if args.save:
+			# Saves the model to a file, or restores it
+			saver = tf.train.Saver(tf.trainable_variables())
 
 		# Load from saved model if argument is specified
 		if args.restore:
@@ -157,16 +214,14 @@ def train(args):
 			print 'Sample validation results:'
 			val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
 			val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
-			print 'Expected', val_labels[:, 1:22]
-			print 'Got', val_preds[:, :21]
+			print_examples(val_labels, val_preds, DL_val)
+
 
 
 			print 'Sample train results:'
 			train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
 			train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
-			print 'Expected', train_labels[:, 1:22]
-			print 'Got', train_preds[:, :21]
-
+			print_examples(train_labels, train_preds, DL_train)
 
 		print 'All done!'
 

@@ -2,7 +2,7 @@
 num_input_features 	= 39
 encoder_hidden_size	= 200
 decoder_hidden_size	= 200
-embedding_dim 		= 100
+embedding_dim 		= 120
 vocab_size			= 30
 
 # Hyperparameters
@@ -19,4 +19,4 @@ max_out_len 		= 200
 max_grad_norm 		= 10
 print_every			= 50
 
-num_beams 			= 7
+num_beams 			= 12
