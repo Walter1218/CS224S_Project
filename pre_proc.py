@@ -63,19 +63,15 @@ def split_and_save_data(dataset):
 		if i in data_split['train']:
 			y, sr = librosa.load(f, sr=SAMPLE_RATE)
 			# mfcc_train[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
-			S = librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS)
-			print S.shape, np.log(S).shape
-			print np.log(S)
-			print np.log(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
-			mfcc_train[i] = np.log(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
+			mfcc_train[i] = librosa.power_to_db(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
 		elif i in data_split['dev']:
 			y, sr = librosa.load(f, sr=SAMPLE_RATE)
 			# mfcc_dev[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
-			mfcc_dev[i] = np.log(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
+			mfcc_dev[i] = librosa.power_to_db(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
 		else:
 			y, sr = librosa.load(f, sr=SAMPLE_RATE)
 			# mfcc_test[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
-			mfcc_test[i] = np.log(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
+			mfcc_test[i] = librosa.power_to_db(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
 
 	print "Done Processing Files!"
 	print "Total Files Processed:", len(fp)
@@ -145,34 +141,37 @@ def split_and_save_transcripts(dataset, data_split, fp_to_id):
 		if i%100==0: print (i)
 		with open(f, 'rb') as doc:
 			for transcript in doc:
-				filename = re.findall(r'\([^\)\(]+\)',transcript)[-1]
-				transcript = transcript.replace(filename, '')
-				transcript = re.sub(r"(\[[^\]\[]]+\])|[^a-zA-Z ]", '', transcript)
-				filename = filename[1:-1]
+				try:
+					filename = re.findall(r'\([^\)\(]+\)',transcript)[-1]
+					transcript = transcript.replace(filename, '')
+					transcript = re.sub(r"(\[[^\]\[]]+\])|[^a-zA-Z ]", '', transcript)
+					filename = filename[1:-1]
 
-				if filename in fp_to_id:
-					id_no = fp_to_id[filename]
-				else:
-					no_id[filename] = f
-					print f, filename
-					continue
-
-				num_string = []
-				for char in transcript:
-					if char == ' ':
-						num_string.append(26)
+					if filename in fp_to_id:
+						id_no = fp_to_id[filename]
 					else:
-						num_string.append(ord(char.lower()) - ord('a'))	
+						no_id[filename] = f
+						print f, filename
+						continue
 
-				if id_no in data_split['train']:
-					labels_train[id_no] = num_string
-					if id_no in comp_tr: comp_tr.remove(id_no)
-				elif id_no in data_split['dev']:
-					labels_dev[id_no] = num_string
-					if id_no in comp_dev: comp_dev.remove(id_no)
-				else:
-					labels_test[id_no] = num_string
-					if id_no in comp_ts: comp_ts.remove(id_no)
+					num_string = []
+					for char in transcript:
+						if char == ' ':
+							num_string.append(26)
+						else:
+							num_string.append(ord(char.lower()) - ord('a'))	
+
+					if id_no in data_split['train']:
+						labels_train[id_no] = num_string
+						if id_no in comp_tr: comp_tr.remove(id_no)
+					elif id_no in data_split['dev']:
+						labels_dev[id_no] = num_string
+						if id_no in comp_dev: comp_dev.remove(id_no)
+					else:
+						labels_test[id_no] = num_string
+						if id_no in comp_ts: comp_ts.remove(id_no)
+				except:
+					print transcript
 
 	print "Done Processing Files!"
 	print "Train Files:", len(labels_train)
@@ -207,6 +206,6 @@ def split_and_save_transcripts(dataset, data_split, fp_to_id):
 if __name__ == "__main__":
 	dataset = 'wsj0'
 	data_split, fp_to_id = split_and_save_data(dataset)
-	#data_split = pickle.load(open('data_split.pkl', 'rb'))
-	#fp_to_id = pickle.load(open('data\\wsj0_si\\filepath_to_id_no.pkl', 'rb'))
+	# data_split = pickle.load(open('data\\wsj0\\data_split.pkl', 'rb'))
+	# fp_to_id = pickle.load(open('data\\wsj0\\filepath_to_id_no.pkl', 'rb'))
 	split_and_save_transcripts(dataset, data_split, fp_to_id)
