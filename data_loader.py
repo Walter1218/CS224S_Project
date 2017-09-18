@@ -44,7 +44,7 @@ class DataLoader:
 		self.mean_vector = mean_vector
 
 		# We will use this to compute the average feature
-		feature_sum = np.zeros(39)
+		feature_sum = np.zeros(config.num_input_features)
 		feature_count = 0.0
 		keys = sorted(features.keys())
 		for f in keys:
