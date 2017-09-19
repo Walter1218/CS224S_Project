@@ -7,7 +7,7 @@ vocab_size			= 30
 
 # Hyperparameters
 lr 					= 1e-3
-dropout_p 			= 0.6
+dropout_p 			= 1
 clip_gradients		= False
 clip_val          	= 10
 

@@ -177,9 +177,9 @@ class ASRModel:
 			# Reshape
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
-			init_state = [self.encoded]
-			for i in range(self.config.num_layers):
-				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = list(self.encoded) + [tf.zeros_like(self.encoded[0])]
+			# for i in range(self.config.num_dec_layers):
+			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
 			outputs, _ = tf.nn.seq2seq.rnn_decoder(decoder_inputs=decoder_inputs,\
 												initial_state = init_state,\
@@ -187,7 +187,8 @@ class ASRModel:
 
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
-
+			tensor_preds = tf.nn.dropout(tensor_preds, keep_prob=self.config.dropout_p)
+			
 			# Compute dot product
 			original_shape = tf.shape(tensor_preds)
 			outputs_flat = tf.reshape(tensor_preds, [-1, self.config.decoder_hidden_size])
@@ -224,9 +225,10 @@ class ASRModel:
 				return tf.reshape(outputs, [original_shape[0], original_shape[1], self.config.embedding_dim])
 
 			start_tokens = tf.nn.embedding_lookup(self.L, self.labels_placeholder[:, 0])
-			init_state = [self.encoded]
-			for i in range(self.config.num_layers):
-				init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
+			init_state = list(self.encoded) + [tf.zeros_like(self.encoded[0])]
+			# init_state = [self.encoded]
+			# for i in range(self.config.num_dec_layers):
+			# 	init_state.append(tf.zeros_like(self.encoded, dtype=tf.float32))
 			init_state = tuple(init_state)
 			self.decoded, _ = beam_decoder(
 			    cell=self.cell,
@@ -248,6 +250,7 @@ class ASRModel:
 			def loop_fn(prev, i):
 				indices = tf.argmax(tf.matmul(prev, W) + b, axis=1)
 				return tf.nn.embedding_lookup(self.L, indices)
+
 
 			decoder_inputs = tf.nn.embedding_lookup(self.L, ids=self.labels_placeholder)
 			decoder_inputs = tf.unstack(decoder_inputs, axis=1)[:-1]
