@@ -98,12 +98,9 @@ class ASRModel:
 			conv1 = tf.nn.relu(tf.nn.conv1d(value = self.input_placeholder, filters = filter_1, \
 											stride = 2, padding = 'SAME', name = 'conv1'))
 
-			print conv1.get_shape()
 			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-			print cell_fw
-			print cell_bw
-			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, sequence_lengths=self.inputs=conv1, dtype=tf.float32)
+			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, sequence_length=tf.ceil(self.in_seq_lens/2), inputs=conv1, dtype=tf.float32)
 			
 			# Pass concatenated hidden states as inputs to CNN
 			h1_vals = tf.concat(2, outputs)
@@ -127,7 +124,7 @@ class ASRModel:
 				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 				backward_cells.append(cell)
 			cell_bw2 = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
-			final_outputs, final_states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw2, cell_bw = cell_bw2, inputs=conv2, \
+			final_outputs, final_states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw2, cell_bw = cell_bw2, sequence_length=tf.ceil(self.in_seq_lens/4), inputs=conv2, \
 											dtype=tf.float32)
 			all_states = []
 			for i in range(self.config.num_layers):
