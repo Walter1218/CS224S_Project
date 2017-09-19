@@ -98,11 +98,12 @@ class ASRModel:
 			conv1 = tf.nn.relu(tf.nn.conv1d(value = self.input_placeholder, filters = filter_1, \
 											stride = 2, padding = 'SAME', name = 'conv1'))
 
-
+			print conv1.get_shape()
 			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-
-			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, dtype=tf.float32)
+			print cell_fw
+			print cell_bw
+			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, sequence_lengths=self.inputs=conv1, dtype=tf.float32)
 			
 			# Pass concatenated hidden states as inputs to CNN
 			h1_vals = tf.concat(2, outputs)
@@ -111,7 +112,7 @@ class ASRModel:
 			filter_2 = tf.get_variable('filters2', shape=(4, 2*self.config.encoder_hidden_size, 100), \
 									initializer=tf.contrib.layers.xavier_initializer())
 
-			conv2 = tf.nn.relu(tf.nn.conv1d(value = conv1, filters = filter_2, \
+			conv2 = tf.nn.relu(tf.nn.conv1d(value = h1_vals, filters = filter_2, \
 											stride = 2, padding = 'SAME', name = 'conv2'))
 
 			# Lastly, run a single dynamic rnn over the resulting time series, and use
@@ -126,14 +127,14 @@ class ASRModel:
 				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 				backward_cells.append(cell)
 			cell_bw2 = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
-			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw2, cell_bw = cell_bw2, inputs=conv2, \
+			final_outputs, final_states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw2, cell_bw = cell_bw2, inputs=conv2, \
 											dtype=tf.float32)
 			all_states = []
 			for i in range(self.config.num_layers):
-				all_states.append(tf.concat(1, (states[0][i], states[1][i])))
+				all_states.append(tf.concat(1, (final_states[0][i], final_states[1][i])))
 			print 'All states', all_states
 			self.encoded = tuple(all_states)
-			self.memory = tf.concat(2, outputs)
+			self.memory = tf.concat(2, final_outputs)
 			print 'Memory shape', self.memory.get_shape()
 			# cell_fw2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 			# cell_bw2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
