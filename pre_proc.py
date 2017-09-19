@@ -8,14 +8,14 @@ SEED = 472
 PCT_TRAIN =.70
 PCT_DEV = .15
 PCT_TEST = .15
-hop_length = 512
+SAMPLE_RATE = 16000
+N_MELS = 40
+hop_length = 160
 n_mfcc = 39
 
 
 def split_and_save_data(dataset):
 
-	if dataset == 'wsj0_si':
-		dirname = "data\\wsj0_raw_data\\**\\wsj0\\si_tr_s\\**\\*.wv1"
 	dirname1 = "data\\wsj0_raw_data\\**\\wsj0\\s*_tr_*\\**\\*.wv1"
 	dirname2 = "data\\wsj0_raw_data\\**\\wsj0\\s*_dt_*\\**\\*.wv1"
 	dirname3 = "data\\wsj0_raw_data\\**\\wsj0\\s*_et_*\\**\\*.wv1"
@@ -56,19 +56,22 @@ def split_and_save_data(dataset):
 	print "Test Files:", len(data_split['test'])
 
 	for i,f in enumerate(fp):
-		if i%100==0: print (i)
+		if i%100==0: print i
 		filename = re.search('\w+.wv1', f).group(0).split('.')[0]
 		fp_to_id[filename] = i
 		id_to_fp[i] = filename
 		if i in data_split['train']:
-			y, sr = librosa.load(f)
-			mfcc_train[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
+			y, sr = librosa.load(f, sr=SAMPLE_RATE)
+			# mfcc_train[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
+			mfcc_train[i] = librosa.power_to_db(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
 		elif i in data_split['dev']:
-			y, sr = librosa.load(f)
-			mfcc_dev[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
+			y, sr = librosa.load(f, sr=SAMPLE_RATE)
+			# mfcc_dev[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
+			mfcc_dev[i] = librosa.power_to_db(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
 		else:
-			y, sr = librosa.load(f)
-			mfcc_test[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
+			y, sr = librosa.load(f, sr=SAMPLE_RATE)
+			# mfcc_test[i] = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=n_mfcc)
+			mfcc_test[i] = librosa.power_to_db(librosa.feature.melspectrogram(y=y, sr=sr, hop_length=hop_length, n_mels=N_MELS))
 
 	print "Done Processing Files!"
 	print "Total Files Processed:", len(fp)
@@ -126,6 +129,8 @@ def split_and_save_transcripts(dataset, data_split, fp_to_id):
 	labels_dev = {}
 	labels_test = {}
 
+	no_id = {}
+
 	comp_tr = set(data_split['train'])
 	comp_dev = set(data_split['dev'])
 	comp_ts = set(data_split['test'])
@@ -136,43 +141,37 @@ def split_and_save_transcripts(dataset, data_split, fp_to_id):
 		if i%100==0: print (i)
 		with open(f, 'rb') as doc:
 			for transcript in doc:
-				filename = re.findall(r'\([^\)\(]+\)',transcript)[-1]
-				transcript = transcript.replace(filename, '')
-				transcript = re.sub(r"(\[[^\]\[]]+\])|[^a-zA-Z ]", '', transcript)
-				filename = filename[1:-1]
+				try:
+					filename = re.findall(r'\([^\)\(]+\)',transcript)[-1]
+					transcript = transcript.replace(filename, '')
+					transcript = re.sub(r"(\[[^\]\[]]+\])|[^a-zA-Z ]", '', transcript)
+					filename = filename[1:-1]
 
-				if filename in fp_to_id:
-					id_no = fp_to_id[filename]
-				else:
-					print f, filename
-
-				num_string = []
-				for char in transcript:
-					if char == ' ':
-						num_string.append(26)
+					if filename in fp_to_id:
+						id_no = fp_to_id[filename]
 					else:
-						num_string.append(ord(char.lower()) - ord('a'))	
+						no_id[filename] = f
+						print f, filename
+						continue
 
-				if id_no in data_split['train']:
-					labels_train[id_no] = num_string
-					if id_no in comp_tr: comp_tr.remove(id_no)
-				elif id_no in data_split['dev']:
-					labels_dev[id_no] = num_string
-					if id_no in comp_dev: comp_dev.remove(id_no)
-				else:
-					labels_test[id_no] = num_string
-					if id_no in comp_ts: comp_ts.remove(id_no)
-	
-	itof = pickle.load(open('data\\wsj0_si\\id_no_to_filepath.pkl', 'rb'))
-	print 'Train'
-	for f in comp_tr:
-		print itof[f]
-	print 'Dev'
-	for f in comp_dev:
-		print itof[f]
-	print 'Test'
-	for f in comp_ts:
-		print itof[f]
+					num_string = []
+					for char in transcript:
+						if char == ' ':
+							num_string.append(26)
+						else:
+							num_string.append(ord(char.lower()) - ord('a'))	
+
+					if id_no in data_split['train']:
+						labels_train[id_no] = num_string
+						if id_no in comp_tr: comp_tr.remove(id_no)
+					elif id_no in data_split['dev']:
+						labels_dev[id_no] = num_string
+						if id_no in comp_dev: comp_dev.remove(id_no)
+					else:
+						labels_test[id_no] = num_string
+						if id_no in comp_ts: comp_ts.remove(id_no)
+				except:
+					print transcript
 
 	print "Done Processing Files!"
 	print "Train Files:", len(labels_train)
@@ -196,12 +195,17 @@ def split_and_save_transcripts(dataset, data_split, fp_to_id):
 	labels_test_pkl.close()
 	print "Test set labels features saved to data\\"+dataset+"\\labels_test.pkl"
 
+	no_id_pkl = open('data\\'+dataset+'\\no_id.pkl', 'wb')
+	pickle.dump(no_id, no_id_pkl)
+	no_id_pkl.close()
+	print "Label id's with no data saved to data\\"+dataset+"\\no_id.pkl"
+
 	print "All Done!"
 
 
 if __name__ == "__main__":
 	dataset = 'wsj0'
 	data_split, fp_to_id = split_and_save_data(dataset)
-	#data_split = pickle.load(open('data_split.pkl', 'rb'))
-	#fp_to_id = pickle.load(open('data\\wsj0_si\\filepath_to_id_no.pkl', 'rb'))
+	# data_split = pickle.load(open('data\\wsj0\\data_split.pkl', 'rb'))
+	# fp_to_id = pickle.load(open('data\\wsj0\\filepath_to_id_no.pkl', 'rb'))
 	split_and_save_transcripts(dataset, data_split, fp_to_id)
