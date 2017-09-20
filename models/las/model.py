@@ -76,57 +76,73 @@ class ASRModel:
 
 		return feed_dict
 
+
+	def concatenate(self, inputs, sequence_lengths):
+		input_shape = tf.Tensor.get_shape(inputs)
+		print('concat: initial shape: ', input_shape)
+		concat_inputs = []
+		for time_i in range(1, int(input_shape[1]), 2):
+		    concat_input = tf.concat(1, [inputs[:, time_i-1, :], inputs[:, time_i, :]], name='plstm_concat')
+		    concat_inputs.append(concat_input)
+		inputs = tf.pack(concat_inputs, axis=1, name='plstm_pack')
+		concat_shape = tf.Tensor.get_shape(inputs)
+		print('concat: concat shape: ', concat_shape)
+
+		sequence_lengths = tf.cast(tf.floor(tf.cast(sequence_lengths, tf.float32)/2), tf.int32)
+		return inputs, sequence_lengths
+
+
 	def add_encoder(self):
 		print 'Adding encoder'
 		# Use a GRU to encode the inputs
 		with tf.variable_scope('Encoder'):
 
-			# # Forward and backward cells for initial encoder
-			# cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-			# cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-
-			# # Run bidir RNN over initial inputs first
-			# outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, inputs=self.input_placeholder, \
-			# 								sequence_length=self.input_seq_lens, dtype=tf.float32)
-			
-			# # Pass concatenated hidden states as inputs to CNN
-			# h1_vals = tf.concat(2, outputs)
-
-			# First conv layer
-			filter_1 = tf.get_variable('filters1', shape=(4, self.config.num_input_features, 100), \
-									initializer=tf.contrib.layers.xavier_initializer())
-			conv1 = tf.nn.relu(tf.nn.conv1d(value = self.input_placeholder, filters = filter_1, \
-											stride = 2, padding = 'SAME', name = 'conv1'))
-
+			# Base BLSTM
 			cell_fw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 			cell_bw = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
-			in_lens = tf.cast(tf.ceil(tf.cast(self.input_seq_lens, tf.float32)/2.0), tf.int32)
-			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, sequence_length=in_lens, inputs=conv1, dtype=tf.float32)
-			
-			# Pass concatenated hidden states as inputs to CNN
+			# in_lens = tf.cast(tf.ceil(tf.cast(self.input_seq_lens, tf.float32)/2.0), tf.int32)
+			outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw, cell_bw = cell_bw, sequence_length=self.input_seq_lens, inputs=self.input_placeholder, dtype=tf.float32)
 			h1_vals = tf.concat(2, outputs)
 
-			# Second conv layer
-			filter_2 = tf.get_variable('filters2', shape=(4, 2*self.config.encoder_hidden_size, 100), \
-									initializer=tf.contrib.layers.xavier_initializer())
+			# First PLSTM
+			concat_inputs, new_seq_lens = self.concatenate(h1_vals, self.input_seq_lens)
 
-			conv2 = tf.nn.relu(tf.nn.conv1d(value = h1_vals, filters = filter_2, \
-											stride = 2, padding = 'SAME', name = 'conv2'))
+			cell_fw2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			cell_bw2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 
+			outputs2, states2 = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw2, cell_bw = cell_bw2, sequence_length=new_seq_lens, inputs=concat_inputs, dtype=tf.float32)
+			
+			# Pass concatenated hidden states as inputs to CNN
+			h2_vals = tf.concat(2, outputs2)
+
+
+			# Second PLSTM
+			concat_inputs2, new_seq_lens2 = self.concatenate(h2_vals, new_seq_lens)
+
+			cell_fw3 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			cell_bw3 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+
+			outputs3, states3 = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw3, cell_bw = cell_bw3, sequence_length=new_seq_lens2, inputs=concat_inputs2, dtype=tf.float32)
+			
+			# Pass concatenated hidden states as inputs to CNN
+			h3_vals = tf.concat(2, outputs3)
+
+			# Final PLSTM
+			concat_inputs3, new_seq_lens3 = self.concatenate(h3_vals, new_seq_lens2)
+			
 			# Lastly, run a single dynamic rnn over the resulting time series, and use
 			# corresponding states as memory
 			forward_cells = []
 			for i in range(self.config.num_layers):
 				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 				forward_cells.append(cell)
-			cell_fw2 = tf.nn.rnn_cell.MultiRNNCell(cells=forward_cells)
+			cell_fw3 = tf.nn.rnn_cell.MultiRNNCell(cells=forward_cells)
 			backward_cells = []
 			for i in range(self.config.num_layers):
 				cell = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
 				backward_cells.append(cell)
-			cell_bw2 = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
-			in_lens_2 = tf.cast(tf.ceil(tf.cast(self.input_seq_lens, tf.float32)/4.0), tf.int32)
-			final_outputs, final_states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw2, cell_bw = cell_bw2, sequence_length=in_lens_2, inputs=conv2, \
+			cell_bw3 = tf.nn.rnn_cell.MultiRNNCell(cells=backward_cells)
+			final_outputs, final_states = tf.nn.bidirectional_dynamic_rnn(cell_fw = cell_fw3, cell_bw = cell_bw3, sequence_length=new_seq_lens3, inputs=concat_inputs3, \
 											dtype=tf.float32)
 			all_states = []
 			for i in range(self.config.num_layers):
@@ -136,6 +152,13 @@ class ASRModel:
 			print self.encoded
 			self.memory = tf.concat(2, final_outputs)
 			print 'Memory shape', self.memory.get_shape()
+			# cell_fw2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			# cell_bw2 = tf.nn.rnn_cell.GRUCell(num_units = self.config.encoder_hidden_size)
+			# final_outputs, final_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=cell_fw2, cell_bw=cell_bw2, inputs=conv2, dtype=tf.float32)
+			# self.encoded = final_state
+			# self.memory = final_outputs
+			# print 'Memory shape', self.memory.get_shape()
+			# print 'Encoded shape', self.encoded.get_shape()
 
 
 	def add_cell(self):
@@ -181,7 +204,7 @@ class ASRModel:
 			# Convert outputs back into Tensor
 			tensor_preds = tf.stack(outputs, axis=1)
 			tensor_preds = tf.nn.dropout(tensor_preds, keep_prob=self.config.dropout_p)
-
+			
 			# Compute dot product
 			original_shape = tf.shape(tensor_preds)
 			outputs_flat = tf.reshape(tensor_preds, [-1, self.config.decoder_hidden_size])
