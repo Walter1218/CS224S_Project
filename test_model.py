@@ -66,6 +66,11 @@ def load_model_and_data(args):
 		config.max_in_len = 170
 		config.max_out_len = 7
 		config.vocab_size = 11
+	elif args.data == 'wsj_new':
+		config.max_in_len = 1100
+		config.max_out_len = 200
+		config.vocab_size = 27
+		config.num_input_features = 40
 	config.vocab_size += 3
 	if args.embedding_size is not None:
 		config.embedding_dim = args.embedding_size
