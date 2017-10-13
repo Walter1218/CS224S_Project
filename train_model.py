@@ -143,7 +143,7 @@ def train(args):
 
 	# Init function for all variables
 	init = tf.global_variables_initializer()
-	config2 = tf.ConfigProto(allow_soft_placement = True)
+	config2 = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
 	# Create a session
 	with tf.Session(config=config2) as sess:
 
@@ -186,11 +186,16 @@ def train(args):
 			# For every batch
 			for iter_num in xrange(num_iters_per_epoch):
 				# Get training batch
+				batch_start_time = time.time()
 				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
-				
+				batch_end_time = time.time()
+				batch_diff = batch_end_time - batch_start_time
+
 				# Get loss and summary
+				train_start_time = time.time()
 				loss, _, summary = model.train_on_batch(sess, batch_input, batch_seq_lens, batch_labels, batch_mask)
-				
+				train_end_time = time.time()
+				train_diff = train_end_time - train_start_time
 				# Write summary out
 				writer.add_summary(summary, overall_num_iters)
 
@@ -201,6 +206,8 @@ def train(args):
 				if iter_num % config.print_every == 0:
 					print 'Iteration ' + str(iter_num)
 					print 'Training loss is', loss
+					print 'Data loading in one iteration took ' str(batch_diff) + ' seconds'
+					print 'Batch training in one iteration took ' str(train_diff) + ' seconds'
 					# val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=config.batch_size)
 #					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
 #					print 'Val loss is', val_loss
