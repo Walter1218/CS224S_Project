@@ -206,8 +206,8 @@ def train(args):
 				if iter_num % config.print_every == 0:
 					print 'Iteration ' + str(iter_num)
 					print 'Training loss is', loss
-					print 'Data loading in one iteration took ' str(batch_diff) + ' seconds'
-					print 'Batch training in one iteration took ' str(train_diff) + ' seconds'
+					print 'Data loading in one iteration took ' + str(batch_diff) + ' seconds'
+					print 'Batch training in one iteration took ' + str(train_diff) + ' seconds'
 					# val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=config.batch_size)
 #					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
 #					print 'Val loss is', val_loss
