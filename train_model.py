@@ -53,7 +53,7 @@ Given the command line arguments, load the appropriate model,
 configuration file, and data.
 '''
 def load_model_and_data(args):
-
+	print str(args)
 	# Get model name
 	model_name = args.model
 	full_path = os.path.dirname(os.path.abspath(__file__))+'/models/' + model_name
@@ -156,6 +156,14 @@ def train(args):
 		if args.save:
 			# Saves the model to a file, or restores it
 			saver = tf.train.Saver(tf.trainable_variables())
+
+		f = open(results_dir + '/info.txt', "w")
+		f.write("Information: " + str(args) + "\n")
+		f.write("Config:\n")
+		variables = zip(vars(config).keys(), vars(config).values())
+		for var, val in sorted(variables):
+			f.write(var + ' = ' + str(val) + "\n")
+		f.close()
 
 		# Load from saved model if argument is specified
 		if args.restore:
