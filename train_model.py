@@ -156,116 +156,119 @@ def train(args):
 
 	# Init function for all variables
 	init = tf.global_variables_initializer()
-	config2 = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
-	# Create a session
-	with tf.Session(config=config2) as sess:
+	# config2 = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+	# # Create a session
+	# with tf.Session(config=config2) as sess:
 
-		# Run initialization
-		sess.run(init)
+	# Run initialization
+	sess.run(init)
 
-		# Writes summaries out to the given path
-		writer = tf.summary.FileWriter(results_dir, sess.graph)
+	# Writes summaries out to the given path
+	writer = tf.summary.FileWriter(results_dir, sess.graph)
 
-		if args.save:
-			# Saves the model to a file, or restores it
-			saver = tf.train.Saver(tf.trainable_variables())
+	if args.save:
+		# Saves the model to a file, or restores it
+		saver = tf.train.Saver(tf.trainable_variables())
 
-		f = open(results_dir + '/info.txt', "w")
-		f.write("Information: " + str(args) + "\n")
-		f.write("Config:\n")
-		variables = zip(vars(config).keys(), vars(config).values())
-		for var, val in sorted(variables):
-			f.write(var + ' = ' + str(val) + "\n")
-		f.close()
+	f = open(results_dir + '/info.txt', "w")
+	f.write("Information: " + str(args) + "\n")
+	f.write("Config:\n")
+	variables = zip(vars(config).keys(), vars(config).values())
+	for var, val in sorted(variables):
+		f.write(var + ' = ' + str(val) + "\n")
+	f.close()
 
-		with  LoggingPrinter(results_dir + '/log.txt'):
-			# Load from saved model if argument is specified
-			if args.restore:
-				print 'Restoring'
-				if args.restorefile:
-					print 'Restoring from ' + args.restorefile
-					saver.restore(sess, old_results_dir + '/' + restorefile)
+	with  LoggingPrinter(results_dir + '/log.txt'):
+		# Load from saved model if argument is specified
+		if args.restore:
+			print 'Restoring'
+			if args.restorefile:
+				print 'Restoring from ' + args.restorefile
+				saver.restore(sess, old_results_dir + '/' + restorefile)
+			else:
+				print 'No file given, restoring most recent'
+				ckpt = tf.train.get_checkpoint_state(old_results_dir)
+				if ckpt and ckpt.model_checkpoint_path:
+					print 'Restoring from ' + ckpt.model_checkpoint_path
+					saver.restore(sess, ckpt.model_checkpoint_path)
 				else:
-					print 'No file given, restoring most recent'
-					ckpt = tf.train.get_checkpoint_state(old_results_dir)
-					if ckpt and ckpt.model_checkpoint_path:
-						print 'Restoring from ' + ckpt.model_checkpoint_path
-						saver.restore(sess, ckpt.model_checkpoint_path)
-					else:
-						print 'No checkpoint found, training from scratch.'
+					print 'No checkpoint found, training from scratch.'
 
 
-			# Used for keeping track of summaries
-			overall_num_iters = 0
+		# Used for keeping track of summaries
+		overall_num_iters = 0
 
-			# For every epoch
-			for epoch in xrange(config.num_epochs):
+		# For every epoch
+		for epoch in xrange(config.num_epochs):
 
-				print 'Epoch ' + str(epoch) + ' of ' + str(config.num_epochs)
+			print 'Epoch ' + str(epoch) + ' of ' + str(config.num_epochs)
 
-				# Number of batches that we loop over in one epoch
-				num_iters_per_epoch = int(DL_train.num_examples/config.batch_size)
+			# Number of batches that we loop over in one epoch
+			num_iters_per_epoch = int(DL_train.num_examples/config.batch_size)
 
-				start = time.time()
-				# For every batch
-				for iter_num in xrange(num_iters_per_epoch):
-					# Get training batch
-					batch_start_time = time.time()
-					batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
-					batch_end_time = time.time()
-					batch_diff = batch_end_time - batch_start_time
+			start = time.time()
+			# For every batch
+			for iter_num in xrange(num_iters_per_epoch):
+				# Get training batch
+				batch_start_time = time.time()
+				batch_input, batch_seq_lens, batch_labels, batch_mask = DL_train.get_batch(batch_size=config.batch_size)
+				batch_end_time = time.time()
+				batch_diff = batch_end_time - batch_start_time
 
-					# Get loss and summary
-					train_start_time = time.time()
-					loss, _, summary = model.train_on_batch(sess, batch_input, batch_seq_lens, batch_labels, batch_mask)
-					train_end_time = time.time()
-					train_diff = train_end_time - train_start_time
-					# Write summary out
-					writer.add_summary(summary, overall_num_iters)
+				# Get loss and summary
+				train_start_time = time.time()
+				loss, _, summary = model.train_on_batch(sess, batch_input, batch_seq_lens, batch_labels, batch_mask)
+				train_end_time = time.time()
+				train_diff = train_end_time - train_start_time
+				# Write summary out
+				writer.add_summary(summary, overall_num_iters)
 
-					# Increment number of iterations
-					overall_num_iters += 1
+				# Increment number of iterations
+				overall_num_iters += 1
 
-					# Print out training loss, iteration number, and val loss to console
-					if iter_num % config.print_every == 0:
-						print 'Iteration ' + str(iter_num)
-						print 'Training loss is', loss
-						print 'Data loading in one iteration took ' + str(batch_diff) + ' seconds'
-						print 'Batch training in one iteration took ' + str(train_diff) + ' seconds'
-						# val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=config.batch_size)
-		#					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
-		#					print 'Val loss is', val_loss
+				# Print out training loss, iteration number, and val loss to console
+				if iter_num % config.print_every == 0:
+					print 'Iteration ' + str(iter_num)
+					print 'Training loss is', loss
+					print 'Data loading in one iteration took ' + str(batch_diff) + ' seconds'
+					print 'Batch training in one iteration took ' + str(train_diff) + ' seconds'
+					# val_input, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=config.batch_size)
+	#					val_loss = model.loss_on_batch(sess, val_input, val_seq_lens, val_labels, val_mask)
+	#					print 'Val loss is', val_loss
 
-				print 'Epoch took ' + str(time.time() - start) + ' seconds'
+			print 'Epoch took ' + str(time.time() - start) + ' seconds'
 
-				# Save after every epoch
-				if args.save:
-					saver.save(sess, results_dir + '/model', global_step=epoch + 1)
+			# Save after every epoch
+			if args.save:
+				saver.save(sess, results_dir + '/model', global_step=epoch + 1)
 
-				print 'Sample validation results:'
-				val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
-				val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
-				print_examples(val_labels, val_preds, DL_val)
+			print 'Sample validation results:'
+			val_inputs, val_seq_lens, val_labels, val_mask = DL_val.get_batch(batch_size=5)
+			val_scores, val_preds = model.test_on_batch(sess, val_inputs, val_seq_lens, val_labels)
+			print_examples(val_labels, val_preds, DL_val)
 
 
-				print 'Sample train results:'
-				train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
-				train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
-				print_examples(train_labels, train_preds, DL_train)
+			print 'Sample train results:'
+			train_inputs, train_seq_lens, train_labels, train_mask = DL_train.get_batch(batch_size=5)
+			train_scores, train_preds = model.test_on_batch(sess, train_inputs, train_seq_lens, train_labels)
+			print_examples(train_labels, train_preds, DL_train)
 
-			print 'All done!'
+		print 'All done!'
 
 
 if __name__ == '__main__':
-	args = parse_arguments()
-	if args.gpu:
-		with tf.device('/gpu:' + str(args.gpu)):
-			print 'Attempting to run with gpu ' + str(args.gpu)
+	config2 = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+	# Create a session
+	with tf.Session(config=config2) as sess:
+		args = parse_arguments()
+		if args.gpu:
+			with tf.device('/gpu:' + str(args.gpu)):
+				print 'Attempting to run with gpu ' + str(args.gpu)
+				load_model_and_data(args)
+				create_results_dir(args)
+				train(args)
+		else:
 			load_model_and_data(args)
 			create_results_dir(args)
 			train(args)
-	else:
-		load_model_and_data(args)
-		create_results_dir(args)
-		train(args)
 
