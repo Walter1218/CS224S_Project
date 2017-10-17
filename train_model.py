@@ -191,6 +191,8 @@ def train(args):
 					if ckpt and ckpt.model_checkpoint_path:
 						print 'Restoring from ' + ckpt.model_checkpoint_path
 						saver.restore(sess, ckpt.model_checkpoint_path)
+					else:
+						print 'No checkpoint found, training from scratch.'
 
 
 			# Used for keeping track of summaries
