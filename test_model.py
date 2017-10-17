@@ -77,8 +77,6 @@ def load_model_and_data(args):
 
 	if args.embedding_size:
 		config.embedding_dim = int(args.embedding_size)
-	if args.dropout_p:
-		config.dropout_p = float(args.dropout_p)
 	if args.ehs:
 		config.encoder_hidden_size = int(args.ehs)
 	if args.dhs:
