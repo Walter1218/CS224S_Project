@@ -34,6 +34,8 @@ def parse_arguments():
 	parser.add_argument('-nb', '--num_beams', default=12, help="Whether you would like to decode with beam search")
 	parser.add_argument('-bt', '--beam_threshold', default=0.0, type=float, help="What threshold to use during beamsearch")
 	parser.add_argument('-nc', '--num_cells', default=64, type=int, help="How many cells to use for the memory-based models.")
+	parser.add_argument('-ehs', '--ehs', default=None, type=int, help="How large the encoder hidden size should be")
+	parser.add_argument('-dhs', '--dhs', default=None, type=int, help="How large the decoder hidden size should be")
 	args = parser.parse_args()
 	return args
 
@@ -72,8 +74,16 @@ def load_model_and_data(args):
 		config.vocab_size = 27
 		config.num_input_features = 40
 	config.vocab_size += 3
-	if args.embedding_size is not None:
-		config.embedding_dim = args.embedding_size
+
+	if args.embedding_size:
+		config.embedding_dim = int(args.embedding_size)
+	if args.dropout_p:
+		config.dropout_p = float(args.dropout_p)
+	if args.ehs:
+		config.encoder_hidden_size = int(args.ehs)
+	if args.dhs:
+		config.decoder_hidden_size = int(args.dhs)
+
 	print 'Current config:\n'
     	variables = zip(vars(config).keys(), vars(config).values())
     	for var, val in sorted(variables):
