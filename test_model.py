@@ -36,6 +36,7 @@ def parse_arguments():
 	parser.add_argument('-nc', '--num_cells', default=64, type=int, help="How many cells to use for the memory-based models.")
 	parser.add_argument('-ehs', '--ehs', default=None, type=int, help="How large the encoder hidden size should be")
 	parser.add_argument('-dhs', '--dhs', default=None, type=int, help="How large the decoder hidden size should be")
+	parser.add_argument('-b', '--batch_size', default=None, type=int, help="How many examples per batch")
 	args = parser.parse_args()
 	return args
 
@@ -81,6 +82,8 @@ def load_model_and_data(args):
 		config.encoder_hidden_size = int(args.ehs)
 	if args.dhs:
 		config.decoder_hidden_size = int(args.dhs)
+	if args.batch_size:
+		config.batch_size = int(args.batch_size)
 
 	print 'Current config:\n'
     	variables = zip(vars(config).keys(), vars(config).values())
